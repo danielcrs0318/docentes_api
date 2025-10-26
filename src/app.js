@@ -21,11 +21,11 @@ db.authenticate().then(async (data) => {
     foreignKey: 'periodoId',
     as: 'parciales'
   });
-
   modeloParciales.belongsTo(modeloPeriodos, {
     foreignKey: 'periodoId',
     as: 'periodo'
   });
+  
   await modeloParciales.sync().then((data) => {
     console.log("Tabla Parciales creada con un Modelo exitosamente");
   }).catch((err) => {

@@ -5,7 +5,9 @@ const rutas = Router();
 const Periodos = require('../modelos/Periodos');
 
 // Rutas para Periodos
-rutas.get('/listar', controladorPeriodos.ListarPeriodos);
+rutas.get('/listar',
+  
+  controladorPeriodos.ListarPeriodos);
 
 rutas.post('/guardar', [
      body('nombre')

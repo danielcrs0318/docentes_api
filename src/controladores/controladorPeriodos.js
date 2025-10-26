@@ -5,11 +5,46 @@ const Parciales = require('../modelos/Parciales');
 // Controlador para obtener todos los periodos
 exports.ListarPeriodos = async (req, res) => {
   try {
-    const periodos = await Periodos.findAll();
-    res.json(periodos);
+    const periodos = await Periodos.findAll({
+      include: [{
+        model: Parciales,
+        as: 'parciales',
+        attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin']
+      }],
+      order: [
+        ['fechaInicio', 'DESC']
+      ],
+      attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin'] // Campos específicos del periodo
+    });
+
+    if (!periodos || periodos.length === 0) {
+      return res.json({ 
+        msj: "No hay periodos registrados", 
+        data: [],
+        count: 0
+      });
+    }
+
+    // Formatear la respuesta para incluir conteo
+    const periodosFormateados = periodos.map(periodo => ({
+      ...periodo.toJSON(),
+      totalParciales: periodo.parciales ? periodo.parciales.length : 0
+    }));
+
+    console.log(`Se encontraron ${periodos.length} periodos`);
+    
+    res.json({ 
+      msj: "Periodos obtenidos correctamente", 
+      data: periodosFormateados,
+      count: periodos.length
+    });
+
   } catch (error) {
-    console.error('Error al obtener los periodos:', error);
-    res.status(500).json({ error: 'Error al obtener los periodos' });
+    console.error("Error al listar periodos:", error);
+    res.status(500).json({ 
+      msj: "Error al listar periodos", 
+      error: error.message 
+    });
   }
 };
 
