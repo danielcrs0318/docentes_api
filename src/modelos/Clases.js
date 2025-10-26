@@ -13,8 +13,14 @@ const Clases = db.define(
             type: DataTypes.STRING(50),
             allowNull: false
         },
+        //hacer modelo para secciones
         seccion: {
             type: DataTypes.STRING(10),
+            allowNull: false
+        },
+        //hacer modelo para dias de la semana
+        diaSemana: {
+            type: DataTypes.JSON,
             allowNull: false
         },
         aula: {
