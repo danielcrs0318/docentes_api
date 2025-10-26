@@ -1,8 +1,8 @@
 const db = require('../configuraciones/db');
 const { DataTypes } = require('sequelize');
 
-const Clases = db.define(
-    'Clases',
+const Seccion = db.define(
+    'Seccion',
     {
         id: {
             type: DataTypes.INTEGER,
@@ -13,15 +13,18 @@ const Clases = db.define(
             type: DataTypes.STRING(50),
             allowNull: false
         },
-        //función para días de la semana ejemplo: ["Lunes", "Miércoles", "Viernes"]
-        diaSemana: {
-            type: DataTypes.JSON,
-            allowNull: false
-        },
-
+        aulaId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'Aulas',
+                key: 'id'
+            }
+        }
     },
     {
-        tableName: 'Clases'
-    });
+        tableName: 'Secciones'
+    }
+);
 
-module.exports = Clases;
+module.exports = Seccion;
