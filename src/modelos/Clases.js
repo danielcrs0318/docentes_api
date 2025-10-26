@@ -9,6 +9,11 @@ const Clases = db.define(
             primaryKey: true,
             autoIncrement: true
         },
+        codigo: {
+            type: DataTypes.STRING(20),
+            allowNull: false,
+            unique: true
+        },
         nombre: {
             type: DataTypes.STRING(50),
             allowNull: false
@@ -18,7 +23,6 @@ const Clases = db.define(
             type: DataTypes.JSON,
             allowNull: false
         },
-
     },
     {
         tableName: 'Clases'

@@ -16,14 +16,6 @@ const Aulas = db.define(
         capacidad: {
             type: DataTypes.INTEGER,
             allowNull: false
-        },
-        seccionId: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-            references: {
-                model: 'Secciones',
-                key: 'id'
-            }
         }
     },
     {

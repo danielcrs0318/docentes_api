@@ -20,6 +20,14 @@ const Seccion = db.define(
                 model: 'Aulas',
                 key: 'id'
             }
+        },
+        claseId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'Clases',
+                key: 'id'
+            }
         }
     },
     {
