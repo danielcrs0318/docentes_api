@@ -31,7 +31,10 @@ exports.CrearAula = async (req, res) => {
         }
 
         const nuevaAula = await Aulas.create({ nombre, capacidad });
-        res.status(201).json(nuevaAula);
+        res.status(201).json({
+            message: 'Aula creada exitosamente',
+            aula: nuevaAula
+        });
     } catch (error) {
         console.error('Error al crear aula:', error);
         res.status(500).json({ error: 'Error al crear aula' });
@@ -57,11 +60,9 @@ exports.ActualizarAula = async (req, res) => {
         aula.nombre = nombre;
         aula.capacidad = capacidad;
         await aula.save();
-
-        // Línea agregada para mostrar mensaje de éxito y datos actualizados
         res.json({ 
-            message: 'Aula editada exitosamente', 
-            datos_actualizados: aula 
+            message: 'Aula actualizada exitosamente',
+            aula: aula
         });
         
     } catch (error) {
@@ -78,8 +79,12 @@ exports.EliminarAula = async (req, res) => {
         if (!aula) {
             return res.status(404).json({ error: 'Aula no encontrada' });
         }
+        const aulaEliminada = {...aula.dataValues};
         await aula.destroy();
-        res.json({ message: 'Aula eliminada' });
+        res.json({ 
+            message: 'Aula eliminada exitosamente',
+            aula: aulaEliminada
+        });
     } catch (error) {
         console.error('Error al eliminar aula:', error);
         res.status(500).json({ error: 'Error al eliminar aula' });

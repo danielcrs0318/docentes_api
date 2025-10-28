@@ -10,7 +10,7 @@ const Seccion = db.define(
             autoIncrement: true
         },
         nombre: {
-            type: DataTypes.STRING(50),
+            type: DataTypes.STRING(6),
             allowNull: false
         },
         aulaId: {
