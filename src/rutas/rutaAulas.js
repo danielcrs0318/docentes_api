@@ -4,10 +4,107 @@ const controladorAulas = require('../controladores/controladorAulas');
 const rutas = Router();
 const Aulas = require('../modelos/Aulas');
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Aula:
+ *       type: object
+ *       required:
+ *         - nombre
+ *         - capacidad
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: ID del aula
+ *         nombre:
+ *           type: string
+ *           description: Nombre del aula
+ *         capacidad:
+ *           type: integer
+ *           description: Capacidad del aula
+ */
+
+/**
+ * @swagger
+ * tags:
+ *   name: Aulas
+ *   description: Rutas para la gestión de aulas
+ */
+
+/**
+ * @swagger
+ * /aulas/listar:
+ *   get:
+ *     summary: Obtiene la lista de todas las aulas
+ *     tags: [Aulas]
+ *     responses:
+ *       200:
+ *         description: Lista de aulas recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Aula'
+ *       400:
+ *         description: Error en la solicitud
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   description: Mensaje de error
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       atributo:
+ *                         type: string
+ *                       msj:
+ *                         type: string
+ */
+
 // Rutas para Aulas
 rutas.get('/listar',
     controladorAulas.ListarAulas);
 
+/**
+ * @swagger
+ * /api/aulas/guardar:
+ *   post:
+ *     summary: Crear una nueva aula
+ *     tags: [Aulas]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nombre
+ *               - capacidad
+ *             properties:
+ *               nombre:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 50
+ *                 description: Nombre del aula
+ *               capacidad:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Capacidad del aula
+ *     responses:
+ *       201:
+ *         description: Aula creada exitosamente
+ *       400:
+ *         description: Error en los datos proporcionados
+ *       409:
+ *         description: Ya existe un aula con ese nombre
+ */
 rutas.post('/guardar', [
     body('nombre')
         .notEmpty()
@@ -26,6 +123,48 @@ rutas.post('/guardar', [
         .withMessage('La capacidad debe ser un número entero mayor que 0')
 ], controladorAulas.CrearAula);
 
+/**
+ * @swagger
+ * /api/aulas/editar:
+ *   put:
+ *     summary: Actualizar un aula existente
+ *     tags: [Aulas]
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del aula a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - nombre
+ *               - capacidad
+ *             properties:
+ *               nombre:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 50
+ *                 description: Nuevo nombre del aula
+ *               capacidad:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Nueva capacidad del aula
+ *     responses:
+ *       200:
+ *         description: Aula actualizada exitosamente
+ *       400:
+ *         description: Error en los datos proporcionados
+ *       404:
+ *         description: Aula no encontrada
+ *       409:
+ *         description: Ya existe otra aula con ese nombre
+ */
 rutas.put('/editar', [
     query('id')  
         .notEmpty()
@@ -56,6 +195,27 @@ rutas.put('/editar', [
     })
 ], controladorAulas.ActualizarAula);
 
+/**
+ * @swagger
+ * /api/aulas/eliminar:
+ *   delete:
+ *     summary: Eliminar un aula
+ *     tags: [Aulas]
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del aula a eliminar
+ *     responses:
+ *       200:
+ *         description: Aula eliminada exitosamente
+ *       400:
+ *         description: Error en la solicitud
+ *       404:
+ *         description: Aula no encontrada
+ */
 rutas.delete('/eliminar', [
     query('id')
         .notEmpty()

@@ -9,6 +9,8 @@ const modeloPeriodos = require('./modelos/Periodos');
 const modeloAulas = require('./modelos/Aulas');
 const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./configuraciones/swagger');
 
 const app = express();
 
@@ -70,6 +72,13 @@ app.use('/api/periodos', require('./rutas/rutaPeriodos'));
 app.use('/api/aulas', require('./rutas/rutaAulas'));
 app.use('/api/clases', require('./rutas/rutaClases'));
 app.use('/api/secciones', require('./rutas/rutaSecciones'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Endpoint para obtener el JSON de Swagger
+app.get('/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+});
 
 // configuramos el puerto
 app.set('port', process.env.PORT || 3001);
