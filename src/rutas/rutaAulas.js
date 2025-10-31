@@ -34,7 +34,7 @@ const Aulas = require('../modelos/Aulas');
 
 /**
  * @swagger
- * /aulas/listar:
+ * /api/aulas/listar:
  *   get:
  *     summary: Obtiene la lista de todas las aulas
  *     tags: [Aulas]
