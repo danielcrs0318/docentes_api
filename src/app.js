@@ -9,6 +9,7 @@ const modeloPeriodos = require('./modelos/Periodos');
 const modeloAulas = require('./modelos/Aulas');
 const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
+const modeloEstudiantes = require('./modelos/Estudiantes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -31,6 +32,14 @@ db.authenticate().then(async (data) => {
   // Clases - Secciones
   modeloClases.hasMany(modeloSecciones, { foreignKey: 'claseId', as: 'secciones' });
   modeloSecciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // Secciones - Estudiantes
+  modeloSecciones.hasMany(modeloEstudiantes, { foreignKey: 'seccionId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
+
+  // Clases - Estudiantes
+  modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
   await modeloPeriodos.sync().then((data) => {
     console.log("Tabla Periodos creada con un Modelo exitosamente");
@@ -62,6 +71,12 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloEstudiantes.sync().then((data) => {
+    console.log("Tabla Estudiantes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
 });
@@ -72,6 +87,7 @@ app.use('/api/periodos', require('./rutas/rutaPeriodos'));
 app.use('/api/aulas', require('./rutas/rutaAulas'));
 app.use('/api/clases', require('./rutas/rutaClases'));
 app.use('/api/secciones', require('./rutas/rutaSecciones'));
+app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Endpoint para obtener el JSON de Swagger
