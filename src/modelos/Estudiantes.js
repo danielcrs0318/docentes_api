@@ -15,7 +15,7 @@ const Estudiantes = db.define(
         },
         apellido: {
             type: DataTypes.STRING(100),
-            allowNull: false
+            allowNull: true
         },
         correo: {
             type: DataTypes.STRING(100),
@@ -27,7 +27,7 @@ const Estudiantes = db.define(
         },
         seccionId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
             references: {
                 model: 'Secciones',
                 key: 'id'
@@ -35,7 +35,7 @@ const Estudiantes = db.define(
         },
         claseId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
             references: {
                 model: 'Clases',
                 key: 'id'

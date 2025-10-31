@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorEstudiantes = require('../controladores/controladorEstudiantes');
+const { uploadExcel } = require('../configuraciones/multer');
 const rutas = Router();
 const Estudiantes = require('../modelos/Estudiantes');
 const Secciones = require('../modelos/Secciones');
@@ -159,8 +160,7 @@ rutas.post('/guardar', [
         .isLength({ min: 2, max: 100 })
         .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
     body('apellido')
-        .notEmpty()
-        .withMessage('El apellido es obligatorio')
+        .optional()
         .isLength({ min: 2, max: 100 })
         .withMessage('El apellido debe tener entre 2 y 100 caracteres'),
     body('correo')
@@ -169,13 +169,11 @@ rutas.post('/guardar', [
         .isEmail()
         .withMessage('Debe ser un correo electrónico válido'),
     body('seccionId')
-        .notEmpty()
-        .withMessage('La sección es obligatoria')
+        .optional()
         .isInt()
         .withMessage('El ID de sección debe ser un número entero'),
     body('claseId')
-        .notEmpty()
-        .withMessage('La clase es obligatoria')
+        .optional()
         .isInt()
         .withMessage('El ID de clase debe ser un número entero'),
     body('estado')
@@ -258,8 +256,7 @@ rutas.put('/editar', [
         .isLength({ min: 2, max: 100 })
         .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
     body('apellido')
-        .notEmpty()
-        .withMessage('El apellido es obligatorio')
+        .optional()
         .isLength({ min: 2, max: 100 })
         .withMessage('El apellido debe tener entre 2 y 100 caracteres'),
     body('correo')
@@ -268,18 +265,15 @@ rutas.put('/editar', [
         .isEmail()
         .withMessage('Debe ser un correo electrónico válido'),
     body('seccionId')
-        .notEmpty()
-        .withMessage('La sección es obligatoria')
+        .optional()
         .isInt()
         .withMessage('El ID de sección debe ser un número entero'),
     body('claseId')
-        .notEmpty()
-        .withMessage('La clase es obligatoria')
+        .optional()
         .isInt()
         .withMessage('El ID de clase debe ser un número entero'),
     body('estado')
-        .notEmpty()
-        .withMessage('El estado es obligatorio')
+        .optional()
         .isIn(['ACTIVO', 'INACTIVO', 'RETIRADO'])
         .withMessage('El estado debe ser ACTIVO, INACTIVO o RETIRADO')
 ], controladorEstudiantes.ActualizarEstudiante);
@@ -313,5 +307,91 @@ rutas.delete('/eliminar', [
         .isInt()
         .withMessage('El ID debe ser un número entero')
 ], controladorEstudiantes.EliminarEstudiante);
+
+/**
+ * @swagger
+ * /api/estudiantes/importar-excel:
+ *   post:
+ *     summary: Importar estudiantes desde un archivo Excel
+ *     tags: [Estudiantes]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - excel
+ *             properties:
+ *               excel:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo Excel (.xlsx o .xls) con los datos de estudiantes
+ *     responses:
+ *       201:
+ *         description: Estudiantes importados exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 resumen:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     creados:
+ *                       type: integer
+ *                     errores:
+ *                       type: integer
+ *       400:
+ *         description: Error en el archivo o datos inválidos
+ *       500:
+ *         description: Error al procesar el archivo
+ */
+rutas.post('/importar-excel',
+    (req, res, next) => {
+        console.log('=== DEBUG MULTER ===');
+        console.log('Headers:', req.headers);
+        console.log('Content-Type:', req.headers['content-type']);
+        console.log('Body:', req.body);
+        next();
+    },
+    uploadExcel.single('excel'),
+    (err, req, res, next) => {
+        if (err) {
+            console.error('Error en multer:', err);
+            return res.status(400).json({
+                error: 'Error al procesar el archivo',
+                detalle: err.message,
+                codigo: err.code,
+                ayuda: 'Verifica que en Postman: 1) El campo se llame "excel", 2) El tipo sea "File" (no "Text"), 3) Hayas seleccionado un archivo'
+            });
+        }
+        next();
+    },
+    controladorEstudiantes.CargarDesdeExcel
+);
+
+// Endpoint de prueba para verificar que multer funciona
+rutas.post('/test-upload',
+    uploadExcel.single('excel'),
+    (req, res) => {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se recibió ningún archivo' });
+        }
+        res.json({
+            message: 'Archivo recibido correctamente',
+            archivo: {
+                nombre: req.file.filename,
+                nombreOriginal: req.file.originalname,
+                tamaño: req.file.size,
+                tipo: req.file.mimetype
+            }
+        });
+    }
+);
 
 module.exports = rutas;

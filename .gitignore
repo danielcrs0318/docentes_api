@@ -4,5 +4,6 @@
 .DS_Store
 /logs
 /coverage
+/uploads
 *.log
 *.tmp
