@@ -22,11 +22,11 @@ const controladorDocentes = require('../controladores/controladorDocentes');
  *           format: email
  */
 
-rutas.get('/', controladorDocentes.ListarDocentes);
+rutas.get('/Listar', controladorDocentes.ListarDocentes);
 
 /**
  * @swagger
- * /api/docentes:
+ * /api/docentes/Listar:
  *   get:
  *     summary: Obtener lista de docentes
  *     tags: [Docentes]
@@ -43,14 +43,14 @@ rutas.get('/', controladorDocentes.ListarDocentes);
  *         description: Error del servidor
  */
 
-rutas.post('/', [
+rutas.post('/guardar', [
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
     body('correo').isEmail().withMessage('El correo debe ser válido')
 ], controladorDocentes.CrearDocente);
 
 /**
  * @swagger
- * /api/docentes:
+ * /api/docentes/guardar:
  *   post:
  *     summary: Crear un nuevo docente
  *     tags: [Docentes]
