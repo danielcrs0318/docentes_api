@@ -10,6 +10,7 @@ const modeloAulas = require('./modelos/Aulas');
 const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
+const modeloDocentes = require('./modelos/Docentes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -41,6 +42,11 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
+  // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
+  // podría requerir una migración o sincronización con alter)
+  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
+  modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+
   await modeloPeriodos.sync().then((data) => {
     console.log("Tabla Periodos creada con un Modelo exitosamente");
   }).catch((err) => {
@@ -53,8 +59,15 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloClases.sync().then((data) => {
-    console.log("Tabla Clases creada con un Modelo exitosamente");
+  // Sincronizar primero Docentes antes de Clases porque Clases tiene FK -> Docentes
+  await modeloDocentes.sync().then((data) => {
+    console.log("Tabla Docentes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloClases.sync({ alter: true }).then((data) => {
+    console.log("Tabla Clases sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -77,6 +90,12 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloDocentes.sync().then((data) => {
+    console.log("Tabla Docentes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
 });
@@ -88,6 +107,7 @@ app.use('/api/aulas', require('./rutas/rutaAulas'));
 app.use('/api/clases', require('./rutas/rutaClases'));
 app.use('/api/secciones', require('./rutas/rutaSecciones'));
 app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
+app.use('/api/docentes', require('./rutas/rutaDocentes'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Endpoint para obtener el JSON de Swagger
