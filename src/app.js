@@ -11,6 +11,7 @@ const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
+const Proyectos = require('./modelos/Proyectos');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -41,6 +42,10 @@ db.authenticate().then(async (data) => {
   // Clases - Estudiantes
   modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // Proyectos - Estudiantes (relación directa uno-a-muchos)
+  modeloProyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
 
   // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
   // podría requerir una migración o sincronización con alter)
@@ -90,6 +95,13 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  // Sincronizar tablas relacionadas con proyectos
+  await Proyectos.sync({ alter: true }).then((data) => {
+    console.log("Tabla Proyectos sincronizada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+  
   await modeloDocentes.sync().then((data) => {
     console.log("Tabla Docentes creada con un Modelo exitosamente");
   }).catch((err) => {
@@ -108,6 +120,7 @@ app.use('/api/clases', require('./rutas/rutaClases'));
 app.use('/api/secciones', require('./rutas/rutaSecciones'));
 app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
 app.use('/api/docentes', require('./rutas/rutaDocentes'));
+app.use('/api/proyectos', require('./rutas/rutaProyectos'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Endpoint para obtener el JSON de Swagger
