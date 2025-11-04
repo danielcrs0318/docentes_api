@@ -11,6 +11,8 @@ const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
+const modeloEvaluaciones = require('./modelos/Evaluaciones');
+const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -41,6 +43,22 @@ db.authenticate().then(async (data) => {
   // Clases - Estudiantes
   modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // Evaluaciones - asociaciones
+  modeloClases.hasMany(modeloEvaluaciones, { foreignKey: 'claseId', as: 'evaluaciones' });
+  modeloEvaluaciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  modeloParciales.hasMany(modeloEvaluaciones, { foreignKey: 'parcialId', as: 'evaluaciones' });
+  modeloEvaluaciones.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
+
+  modeloPeriodos.hasMany(modeloEvaluaciones, { foreignKey: 'periodoId', as: 'evaluaciones' });
+  modeloEvaluaciones.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
+
+  modeloEvaluaciones.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'evaluacionId', as: 'asignaciones' });
+  modeloEvaluacionesEstudiantes.belongsTo(modeloEvaluaciones, { foreignKey: 'evaluacionId', as: 'evaluacion' });
+
+  modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
+  modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
 
   // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
   // podría requerir una migración o sincronización con alter)
@@ -90,6 +108,14 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloEvaluaciones.sync({ alter: true }).then((data) => {
+    console.log("Tabla Evaluaciones sincronizada");
+  }).catch((err) => { console.error(err); });
+
+  await modeloEvaluacionesEstudiantes.sync({ alter: true }).then((data) => {
+    console.log("Tabla EvaluacionesEstudiantes sincronizada");
+  }).catch((err) => { console.error(err); });
+
   await modeloDocentes.sync().then((data) => {
     console.log("Tabla Docentes creada con un Modelo exitosamente");
   }).catch((err) => {
@@ -108,12 +134,13 @@ app.use('/api/clases', require('./rutas/rutaClases'));
 app.use('/api/secciones', require('./rutas/rutaSecciones'));
 app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
 app.use('/api/docentes', require('./rutas/rutaDocentes'));
+app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Endpoint para obtener el JSON de Swagger
 app.get('/swagger.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 // configuramos el puerto
