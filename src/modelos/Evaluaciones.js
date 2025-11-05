@@ -17,6 +17,18 @@ const Evaluaciones = db.define(
             type: DataTypes.DECIMAL(5, 2),
             allowNull: true,
         },
+        // peso relativo dentro del parcial (por defecto 1). Se usa para calcular promedios ponderados
+        peso: {
+            type: DataTypes.DECIMAL(5, 2),
+            allowNull: false,
+            defaultValue: 1.0
+        },
+        // tipo de evaluación: NORMAL o REPOSICION
+        tipo: {
+            type: DataTypes.ENUM('NORMAL', 'REPOSICION'),
+            allowNull: false,
+            defaultValue: 'NORMAL'
+        },
         fechaInicio: {
             type: DataTypes.DATE,
             allowNull: false,

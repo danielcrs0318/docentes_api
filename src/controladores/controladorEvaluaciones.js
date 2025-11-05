@@ -123,14 +123,132 @@ exports.RegistrarNota = async (req, res) => {
   const { evaluacionId, estudianteId } = req.query;
   const { nota } = req.body;
   try {
+    // buscar la evaluación para validar notaMaxima
+    const evaluacion = await Evaluaciones.findByPk(evaluacionId);
+    if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    // validar nota numérica
+    const valor = parseFloat(nota);
+    if (isNaN(valor) || valor < 0) return res.status(400).json({ msj: 'Nota inválida' });
+    if (evaluacion.notaMaxima && valor > parseFloat(evaluacion.notaMaxima)) {
+      return res.status(400).json({ msj: `La nota no puede ser mayor a la notaMaxima (${evaluacion.notaMaxima})` });
+    }
+
     const registro = await EvaluacionesEstudiantes.findOne({ where: { evaluacionId, estudianteId } });
     if (!registro) return res.status(404).json({ msj: 'Asignación no encontrada' });
-    registro.nota = nota;
+    registro.nota = valor;
     registro.estado = 'CALIFICADO';
     await registro.save();
-    res.json({ msj: 'Nota registrada', registro });
+
+    // después de guardar, calcular total del parcial para el estudiante
+    const parcialId = evaluacion.parcialId;
+    const total = await calcularTotalParcial(estudianteId, parcialId);
+
+    res.json({ msj: 'Nota registrada', registro, totalParcial: total });
   } catch (err) {
-    res.status(500).json({ msj: 'Error al registrar nota', error: err });
+    res.status(500).json({ msj: 'Error al registrar nota', error: err.message || err });
+  }
+};
+
+// Helper: calcula acumulativo, reposicion y total final para un estudiante en un parcial
+const calcularTotalParcial = async (estudianteId, parcialId) => {
+  // traer asignaciones del estudiante para evaluaciones de ese parcial
+  const registros = await EvaluacionesEstudiantes.findAll({
+    where: { estudianteId },
+    include: [
+      {
+        model: Evaluaciones,
+        as: 'evaluacion',
+        where: { parcialId }
+      }
+    ]
+  });
+
+  // Usar ponderaciones (peso) para combinar evaluaciones normales y reposiciones.
+  let totalPesoNormal = 0;
+  let weightedScoreNormal = 0; // suma de (percent * peso)
+  let totalPesoReposicion = 0;
+  let weightedScoreReposicion = 0;
+
+  for (const r of registros) {
+    const ev = r.evaluacion;
+    const nota = r.nota !== null && r.nota !== undefined ? parseFloat(r.nota) : null;
+    const peso = ev.peso ? parseFloat(ev.peso) : 1;
+    const notaMax = ev.notaMaxima ? parseFloat(ev.notaMaxima) : null;
+
+    if (nota === null) continue; // saltar si no hay nota
+
+    // calcular porcentaje de la nota respecto a su notaMaxima si existe, sino asumimos nota ya en escala porcentual
+    const percent = notaMax ? (nota / notaMax) * 100 : nota;
+
+    if (ev.tipo === 'REPOSICION') {
+      weightedScoreReposicion += percent * peso;
+      totalPesoReposicion += peso;
+    } else {
+      weightedScoreNormal += percent * peso;
+      totalPesoNormal += peso;
+    }
+  }
+
+  let acumulativoPercent = 0;
+  if (totalPesoNormal > 0) {
+    acumulativoPercent = weightedScoreNormal / totalPesoNormal; // promedio ponderado en %
+  }
+
+  // Combinar normal + reposición por media ponderada usando la suma de pesos
+  let finalParcial = acumulativoPercent;
+  if (totalPesoReposicion > 0) {
+    const totalWeighted = weightedScoreNormal + weightedScoreReposicion;
+    const totalPeso = totalPesoNormal + totalPesoReposicion;
+    finalParcial = totalPeso > 0 ? totalWeighted / totalPeso : acumulativoPercent;
+  }
+
+  // calcular reposicion promedio ponderado si existe
+  const reposicionPercent = totalPesoReposicion > 0 ? (weightedScoreReposicion / totalPesoReposicion) : null;
+  // redondear a 2 decimales
+  const round = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+  return {
+    acumulativo: round(acumulativoPercent),
+    reposicion: reposicionPercent !== null ? round(reposicionPercent) : null,
+    final: round(finalParcial)
+  };
+};
+
+// Endpoint: obtener total del parcial para un estudiante
+exports.GetTotalParcial = async (req, res) => {
+  const { estudianteId, parcialId } = req.query;
+  if (!estudianteId || !parcialId) return res.status(400).json({ msj: 'estudianteId y parcialId son requeridos' });
+  try {
+    const total = await calcularTotalParcial(estudianteId, parcialId);
+    res.json(total);
+  } catch (err) {
+    res.status(500).json({ msj: 'Error al calcular total parcial', error: err.message || err });
+  }
+};
+
+// Endpoint: promedio de parciales (por periodo)
+exports.GetPromedioPorPeriodo = async (req, res) => {
+  const { estudianteId, periodoId } = req.query;
+  if (!estudianteId || !periodoId) return res.status(400).json({ msj: 'estudianteId y periodoId son requeridos' });
+  try {
+    const parciales = await Parciales.findAll({ where: { periodoId } });
+    if (!parciales || parciales.length === 0) return res.json({ promedio: 0, detalles: [] });
+
+    const detalles = [];
+    let suma = 0;
+    let contador = 0;
+    for (const p of parciales) {
+      const t = await calcularTotalParcial(estudianteId, p.id);
+      detalles.push({ parcialId: p.id, acumulativo: t.acumulativo, reposicion: t.reposicion, final: t.final });
+      if (typeof t.final === 'number') {
+        suma += t.final;
+        contador++;
+      }
+    }
+    const promedio = contador > 0 ? Math.round((suma / contador) * 100) / 100 : 0;
+    res.json({ promedio, detalles });
+  } catch (err) {
+    res.status(500).json({ msj: 'Error al calcular promedio', error: err.message || err });
   }
 };
 

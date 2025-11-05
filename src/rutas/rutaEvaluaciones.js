@@ -231,6 +231,72 @@ const rutas = Router();
 
 /**
  * @swagger
+ * /evaluaciones/total-parcial:
+ *   get:
+ *     summary: Obtiene acumulativo, reposicion y total final de un parcial para un estudiante
+ *     tags: [Evaluaciones]
+ *     parameters:
+ *       - in: query
+ *         name: estudianteId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: parcialId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Totales calculados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 acumulativo:
+ *                   type: number
+ *                 reposicion:
+ *                   type: number
+ *                 final:
+ *                   type: number
+ */
+
+/**
+ * @swagger
+ * /evaluaciones/promedio-periodo:
+ *   get:
+ *     summary: Calcula el promedio de los parciales de un periodo para un estudiante
+ *     tags: [Evaluaciones]
+ *     parameters:
+ *       - in: query
+ *         name: estudianteId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: periodoId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Promedio y detalle por parcial
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 promedio:
+ *                   type: number
+ *                 detalles:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ */
+
+/**
+ * @swagger
  * /evaluaciones/asignar:
  *   post:
  *     summary: Asigna una evaluación existente a estudiantes (por lista, sección o clase)
@@ -261,15 +327,15 @@ rutas.post('/guardar', [
     body('fechaInicio').notEmpty().isISO8601().withMessage('Fecha de inicio inválida'),
     body('fechaCierre').notEmpty().isISO8601().withMessage('Fecha de cierre inválida'),
     // Permitir distintos modos de asignación: claseId, seccionId o lista de estudiantes
-    body('claseId').optional().isInt().withMessage('claseId inválido'),
-    body('seccionId').optional().isInt().withMessage('seccionId inválido'),
-    body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de IDs'),
-    body('estudiantes.*').optional().isInt().withMessage('estudiantes debe contener IDs numéricos'),
+    body('claseId').isInt().withMessage('claseId inválido'),
+    body('seccionId').isInt().withMessage('seccionId inválido'),
+    body('estudiantes').isArray().withMessage('estudiantes debe ser un arreglo de IDs'),
+    body('estudiantes.*').isInt().withMessage('estudiantes debe contener IDs numéricos'),
     body('parcialId').notEmpty().isInt().withMessage('parcialId inválido'),
     body('periodoId').notEmpty().isInt().withMessage('periodoId inválido'),
     body('estado').notEmpty().isIn(['ACTIVO', 'INACTIVO']).withMessage('estado inválido'),
     body('notaMaxima').isDecimal().withMessage('notaMaxima inválida'),
-    body('estructura').optional().isObject().withMessage('estructura debe ser un objeto JSON'),
+    body('estructura').isObject().withMessage('estructura debe ser un objeto JSON'),
 ], controladorEvaluaciones.Guardar);
 
 // Editar evaluación
@@ -279,13 +345,13 @@ rutas.put('/editar', [
     body('fechaInicio').optional().isISO8601().withMessage('Fecha de inicio inválida'),
     body('fechaCierre').optional().isISO8601().withMessage('Fecha de cierre inválida'),
     body('notaMaxima').isDecimal().withMessage('notaMaxima inválida'),
-    body('estructura').optional().isObject().withMessage('estructura debe ser un objeto JSON'),
-    body('claseId').optional().isInt().withMessage('claseId inválido'),
-    body('seccionId').optional().isInt().withMessage('seccionId inválido'),
-    body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de IDs'),
-    body('estudiantes.*').optional().isInt().withMessage('estudiantes debe contener IDs numéricos'),
-    body('parcialId').optional().isInt().withMessage('parcialId inválido'),
-    body('periodoId').optional().isInt().withMessage('periodoId inválido'),
+    body('estructura').isObject().withMessage('estructura debe ser un objeto JSON'),
+    body('claseId').isInt().withMessage('claseId inválido'),
+    body('seccionId').isInt().withMessage('seccionId inválido'),
+    body('estudiantes').isArray().withMessage('estudiantes debe ser un arreglo de IDs'),
+    body('estudiantes.*').isInt().withMessage('estudiantes debe contener IDs numéricos'),
+    body('parcialId').isInt().withMessage('parcialId inválido'),
+    body('periodoId').isInt().withMessage('periodoId inválido'),
     body('estado').optional().isIn(['ACTIVO', 'INACTIVO']).withMessage('estado inválido'),
 ], controladorEvaluaciones.Editar);
 
@@ -301,6 +367,20 @@ rutas.post('/registrarNota', [
     query('estudianteId').notEmpty().isInt(),
     body('nota').notEmpty().isDecimal()
 ], controladorEvaluaciones.RegistrarNota);
+
+// Obtener total del parcial para un estudiante
+// GET /total-parcial?estudianteId=1&parcialId=2
+rutas.get('/total-parcial', [
+    query('estudianteId').notEmpty().isInt().withMessage('estudianteId inválido'),
+    query('parcialId').notEmpty().isInt().withMessage('parcialId inválido'),
+], controladorEvaluaciones.GetTotalParcial);
+
+// Obtener promedio de parciales para un estudiante en un periodo
+// GET /promedio-periodo?estudianteId=1&periodoId=1
+rutas.get('/promedio-periodo', [
+    query('estudianteId').notEmpty().isInt().withMessage('estudianteId inválido'),
+    query('periodoId').notEmpty().isInt().withMessage('periodoId inválido'),
+], controladorEvaluaciones.GetPromedioPorPeriodo);
 
 // Asignar evaluación existente a estudiantes (lista, sección o clase)
 rutas.post('/asignar', [
