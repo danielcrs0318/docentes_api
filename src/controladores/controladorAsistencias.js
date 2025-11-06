@@ -15,7 +15,7 @@ exports.listarAsistencias = async (req, res) => {
                 {
                     model: Estudiante,
                     as: 'estudiante',
-                    attributes: ['nombre','apellido','correo']
+                    attributes: ['nombre', 'correo']
                 },
                 {
                     model: Clase,
@@ -274,6 +274,10 @@ exports.filtrarPorFecha = async (req, res) => {
             ]
         });
         
+        if (!asistencias || asistencias.length === 0) {
+            return res.status(200).json({ mensaje: 'No se encontraron asistencias en ese rango de fechas', datos: [] });
+        }
+
         res.json(asistencias);
     } catch (error) {
         console.error(error);
@@ -305,6 +309,10 @@ exports.filtrarPorEstadoYClase = async (req, res) => {
             ]
         });
         
+        if (!asistencias || asistencias.length === 0) {
+            return res.status(200).json({ mensaje: 'No se encontraron asistencias para el estado y/o clase solicitados', datos: [] });
+        }
+
         res.json(asistencias);
     } catch (error) {
         console.error(error);
