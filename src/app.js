@@ -13,6 +13,7 @@ const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
 const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
+const modeloAsistencias = require('./modelos/Asistencia');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -59,6 +60,20 @@ db.authenticate().then(async (data) => {
 
   modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
+
+  modeloAsistencias.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
+  modeloEstudiantes.hasMany(modeloAsistencias, { foreignKey: 'estudianteId', as: 'asistencias' });
+
+  // Clases - Asistencias
+  modeloClases.hasMany(modeloAsistencias, { foreignKey: 'claseId', as: 'asistencias' });
+  modeloAsistencias.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // periodos - Asistencias
+  modeloPeriodos.hasMany(modeloAsistencias, { foreignKey: 'periodoId', as: 'asistencias' });
+  modeloAsistencias.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
+  // parciales - Asistencias
+  modeloParciales.hasMany(modeloAsistencias, { foreignKey: 'parcialId', as: 'asistencias' });
+  modeloAsistencias.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
 
   // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
   // podría requerir una migración o sincronización con alter)
@@ -122,29 +137,46 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloAsistencias.sync({ alter: true }).then((data) => {
+    console.log("Tabla Asistencias sincronizada");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  // Montar rutas e iniciar servidor ahora que los modelos y asociaciones están listos
+  mountServerAndRoutes();
+
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
 });
+// Las rutas y servidor se montan después de establecer conexión y sincronizar modelos
+const mountServerAndRoutes = () => {
+  // rutas
+  app.use('/api/parciales', require('./rutas/rutaParciales'));
+  app.use('/api/periodos', require('./rutas/rutaPeriodos'));
+  app.use('/api/aulas', require('./rutas/rutaAulas'));
+  app.use('/api/clases', require('./rutas/rutaClases'));
+  app.use('/api/secciones', require('./rutas/rutaSecciones'));
+  app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
+  app.use('/api/docentes', require('./rutas/rutaDocentes'));
+  app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
+  app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-//rutas
-app.use('/api/parciales', require('./rutas/rutaParciales'));
-app.use('/api/periodos', require('./rutas/rutaPeriodos'));
-app.use('/api/aulas', require('./rutas/rutaAulas'));
-app.use('/api/clases', require('./rutas/rutaClases'));
-app.use('/api/secciones', require('./rutas/rutaSecciones'));
-app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
-app.use('/api/docentes', require('./rutas/rutaDocentes'));
-app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  // Endpoint para obtener el JSON de Swagger
+  app.get('/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
 
-// Endpoint para obtener el JSON de Swagger
-app.get('/swagger.json', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
-});
+  // configuramos el puerto
+  app.set('port', process.env.PORT || 3001);
+  app.listen(app.get('port'), () => {
+    console.log('Servidor corriendo en el puerto ' + app.get('port'));
+  });
+};
 
-// configuramos el puerto
-app.set('port', process.env.PORT || 3001);
-app.listen(app.get('port'), () => {
-  console.log('Servidor corriendo en el puerto ' + app.get('port'));
-});
+// Intentar montar servidor tras la conexión a la DB: si la conexión ya sucedió,
+// db.authenticate() habría llamado el .then y sincronizado; sin embargo, para
+// asegurar idempotencia también intentamos montar aquí si aún no se ha montado.
+// Llamamos a mountServerAndRoutes al final del flujo de sincronización anterior.
