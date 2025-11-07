@@ -15,7 +15,7 @@ const Seccion = db.define(
         },
         aulaId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
             references: {
                 model: 'Aulas',
                 key: 'id'

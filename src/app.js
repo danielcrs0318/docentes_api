@@ -13,6 +13,7 @@ const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
 const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
+const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -28,6 +29,7 @@ db.authenticate().then(async (data) => {
   // Definir las relaciones entre los modelos
   modeloPeriodos.hasMany(modeloParciales, { foreignKey: 'periodoId', as: 'parciales' });
   modeloParciales.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
+  
   // Aulas - Secciones
   modeloAulas.hasMany(modeloSecciones, { foreignKey: 'aulaId', as: 'secciones' });
   modeloSecciones.belongsTo(modeloAulas, { foreignKey: 'aulaId', as: 'aula' });
@@ -36,13 +38,18 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloSecciones, { foreignKey: 'claseId', as: 'secciones' });
   modeloSecciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
-  // Secciones - Estudiantes
-  modeloSecciones.hasMany(modeloEstudiantes, { foreignKey: 'seccionId', as: 'estudiantes' });
-  modeloEstudiantes.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
+  // Relaciones con tabla intermedia EstudiantesClases
+  // EstudiantesClases pertenece a Estudiantes
+  modeloEstudiantesClases.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
+  modeloEstudiantes.hasMany(modeloEstudiantesClases, { foreignKey: 'estudianteId', as: 'inscripciones' });
 
-  // Clases - Estudiantes
-  modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
-  modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+  // EstudiantesClases pertenece a Clases
+  modeloEstudiantesClases.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+  modeloClases.hasMany(modeloEstudiantesClases, { foreignKey: 'claseId', as: 'inscripciones' });
+
+  // EstudiantesClases pertenece a Secciones
+  modeloEstudiantesClases.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
+  modeloSecciones.hasMany(modeloEstudiantesClases, { foreignKey: 'seccionId', as: 'inscripciones' });
 
   // Evaluaciones - asociaciones
   modeloClases.hasMany(modeloEvaluaciones, { foreignKey: 'claseId', as: 'evaluaciones' });
@@ -60,13 +67,12 @@ db.authenticate().then(async (data) => {
   modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
 
-  // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
-  // podría requerir una migración o sincronización con alter)
+  // Docentes - Clases
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
-  await modeloPeriodos.sync().then((data) => {
-    console.log("Tabla Periodos creada con un Modelo exitosamente");
+  await modeloPeriodos.sync({ alter: true }).then((data) => {
+    console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -90,8 +96,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloSecciones.sync().then((data) => {
-    console.log("Tabla Secciones creada con un Modelo exitosamente");
+  await modeloSecciones.sync({ alter: true }).then((data) => {
+    console.log("Tabla Secciones sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -102,8 +108,14 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloEstudiantes.sync().then((data) => {
-    console.log("Tabla Estudiantes creada con un Modelo exitosamente");
+  await modeloEstudiantes.sync({ alter: true }).then((data) => {
+    console.log("Tabla Estudiantes sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloEstudiantesClases.sync({ alter: true }).then((data) => {
+    console.log("Tabla EstudiantesClases RECREADA (alter:true) - ÍNDICES CORREGIDOS");
   }).catch((err) => {
     console.error(err);
   });
@@ -115,12 +127,6 @@ db.authenticate().then(async (data) => {
   await modeloEvaluacionesEstudiantes.sync({ alter: true }).then((data) => {
     console.log("Tabla EvaluacionesEstudiantes sincronizada");
   }).catch((err) => { console.error(err); });
-
-  await modeloDocentes.sync().then((data) => {
-    console.log("Tabla Docentes creada con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
 
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
