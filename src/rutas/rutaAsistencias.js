@@ -57,4 +57,10 @@ router.get('/filtrar-estado-clase', [
     query('claseId').isInt().withMessage('ID de clase inválido')
 ], controladorAsistencias.filtrarPorEstadoYClase);
 
+// Calcular asistencia perfecta
+router.get('/calcular-asistencia-perfecta', [
+    query('claseId').isInt().withMessage('ID de clase inválido'),
+    query('parcialId').isInt().withMessage('ID de parcial inválido')
+], controladorAsistencias.calcularAsistenciaPerfecta);
+
 module.exports = router;

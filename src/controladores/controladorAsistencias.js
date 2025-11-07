@@ -1,5 +1,6 @@
 const { validationResult } = require('express-validator');
 const { Op } = require('sequelize');
+const db = require('../configuraciones/db');
 const Asistencia = require('../modelos/Asistencia');
 const Estudiante = require('../modelos/Estudiantes');
 const Clase = require('../modelos/Clases');
@@ -317,5 +318,59 @@ exports.filtrarPorEstadoYClase = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error al filtrar las asistencias por estado y clase' });
+    }
+};
+
+// Calcular asistencia perfecta
+exports.calcularAsistenciaPerfecta = async (req, res) => {
+    try {
+        const { claseId, parcialId } = req.query;
+
+        if (!claseId || !parcialId) {
+            return res.status(400).json({ mensaje: 'Se requieren los parámetros claseId y parcialId' });
+        }
+
+        const clase = await Clase.findByPk(claseId);
+        if (!clase) return res.status(404).json({ mensaje: 'Clase no encontrada' });
+
+        // Determinar días por semana según créditos (3 -> 4, 4 -> 5)
+        const diasPorSemana = clase.creditos === 3 ? 4 : 5;
+        const semanasEnParcial = 4;
+        const totalAsistenciasEsperadas = diasPorSemana * semanasEnParcial;
+
+        // Obtener asistencias marcadas como PRESENTE para la clase y parcial
+        const asistenciasPresentes = await Asistencia.findAll({
+            where: { claseId, parcialId, estado: 'PRESENTE' },
+            include: [{ model: Estudiante, as: 'estudiante', attributes: ['id', 'nombre', 'apellido', 'correo'] }]
+        });
+
+        // Agrupar por estudiante y contar
+        const mapa = new Map();
+        for (const a of asistenciasPresentes) {
+            const idEst = a.estudianteId;
+            if (!mapa.has(idEst)) mapa.set(idEst, { estudiante: a.estudiante, total: 0 });
+            mapa.get(idEst).total += 1;
+        }
+
+        const estudiantes = Array.from(mapa.values()).map(item => ({
+            estudiante: item.estudiante,
+            totalAsistencias: item.total,
+            asistenciasEsperadas: totalAsistenciasEsperadas,
+            porcentajeAsistencia: ((item.total / totalAsistenciasEsperadas) * 100).toFixed(2),
+            asistenciaPerfecta: item.total === totalAsistenciasEsperadas
+        }));
+
+        return res.json({
+            clase: clase.nombre,
+            creditos: clase.creditos,
+            diasPorSemana,
+            semanasEnParcial,
+            totalAsistenciasEsperadas,
+            estudiantes
+        });
+
+    } catch (error) {
+        console.error('Error al calcular asistencia perfecta:', error);
+        res.status(500).json({ mensaje: 'Error al calcular la asistencia perfecta', error: error.message });
     }
 };
