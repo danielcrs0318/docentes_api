@@ -341,7 +341,7 @@ exports.calcularAsistenciaPerfecta = async (req, res) => {
         // Obtener asistencias marcadas como PRESENTE para la clase y parcial
         const asistenciasPresentes = await Asistencia.findAll({
             where: { claseId, parcialId, estado: 'PRESENTE' },
-            include: [{ model: Estudiante, as: 'estudiante', attributes: ['id', 'nombre', 'apellido', 'correo'] }]
+            include: [{ model: Estudiante, as: 'estudiante', attributes: ['id', 'nombre', 'correo'] }]
         });
 
         // Agrupar por estudiante y contar

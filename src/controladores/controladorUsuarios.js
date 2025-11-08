@@ -2,7 +2,7 @@ const { validationResult } = require('express-validator');
 const Usuarios = require('../modelos/Usuarios');
 const argon2 = require('argon2');
 const { Op, json } = require('sequelize');
-const { get } = require('../rutas/rutasUsuarios');
+const { get } = require('../rutas/rutaUsuarios');
 
 exports.Listar = async (req, res) => {
     try {
