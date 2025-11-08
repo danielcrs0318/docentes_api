@@ -28,7 +28,7 @@ exports.CrearClase = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
-    const { codigo, nombre, diaSemana } = req.body;
+    const { codigo, nombre, diaSemana, creditos } = req.body;
 
     try {
         // Verificar si ya existe una clase con el mismo código
@@ -45,7 +45,8 @@ exports.CrearClase = async (req, res) => {
         const nuevaClase = await Clases.create({
             codigo,
             nombre,
-            diaSemana
+            diaSemana,
+            creditos
         });
         res.status(201).json(nuevaClase);
     } catch (error) {

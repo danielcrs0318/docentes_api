@@ -129,7 +129,11 @@ rutas.post('/guardar', [
         .withMessage('El nombre es obligatorio y debe tener entre 5 y 30 caracteres'),
     body('diaSemana')
         .notEmpty()
-        .withMessage('El día de la semana es obligatorio.')
+        .withMessage('El día de la semana es obligatorio.'),
+    body('creditos')
+        .notEmpty()
+        .isIn([3, 4])
+        .withMessage('Los créditos son obligatorios y deben ser 3 o 4'),
 ], controladorClases.CrearClase);
 
 /**
@@ -191,7 +195,11 @@ rutas.put('/editar', [
         .withMessage('El nombre es obligatorio y debe tener entre 5 y 30 caracteres.'),
     body('diaSemana')
         .notEmpty()
-        .withMessage('El día de la semana es obligatorio.')
+        .withMessage('El día de la semana es obligatorio.'),
+    body('creditos')
+        .notEmpty()
+        .isIn([3, 4])
+        .withMessage('Los créditos son obligatorios y deben ser 3 o 4'),
 ], controladorClases.ActualizarClase);
 
 /**
