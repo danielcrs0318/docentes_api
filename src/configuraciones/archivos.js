@@ -29,7 +29,7 @@ const diskStorageUsuarios = multer.diskStorage({
 });
 
 //configuracion de subida de imagenes para usuarios
-exports.uploadImagenUsuarios = multer({
+exports.uploadImagenUsuario = multer({
     storage: diskStorageUsuarios,
     fileFilter: (req, file, cb) => {
 

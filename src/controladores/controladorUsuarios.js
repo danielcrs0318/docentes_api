@@ -1,9 +1,14 @@
 const { validationResult } = require('express-validator');
 const Usuarios = require('../modelos/Usuarios');
+const UsuarioImagen = require('../modelos/UsuarioImagenes');
 const argon2 = require('argon2');
 const { Op } = require('sequelize');
 const { enviarCorreo } = require('../configuraciones/correo');
 const jwt = require('jsonwebtoken');
+const { uploadImagenUsuario } = require('../configuraciones/archivos');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 exports.Listar = async (req, res) => {
     try {
@@ -290,5 +295,75 @@ exports.restablecerContrasena = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+exports.validarImagenUsuario = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json(errors.array());
+    }
+    uploadImagenUsuario(req, res, (err) => {
+        if (err instanceof multer.MulterError) {
+            res.status(400).json({ msj: "Hay errores al cargar la imagen", error: err });
+        }
+        else if (err) {
+            res.status(400).json({ msj: "Hay errores al cargar la imagen", error: err });
+        }
+        else {
+            next();
+        }
+    });
+};
+
+
+exports.guardarImagenUsuario = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se ha proporcionado ninguna imagen' });
+        }
+
+        const imagen = req.file.filename;
+        const { id } = req.query;
+
+        if (!id) {
+            return res.status(400).json({ error: 'Se requiere el ID del usuario' });
+        }
+
+        // Verificar que el usuario existe
+        const usuario = await Usuarios.findByPk(id);
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // Verificar que el archivo existe
+        const rutaCompleta = path.join(__dirname, '../../public/img/usuarios', imagen);
+        if (!fs.existsSync(rutaCompleta)) {
+            return res.status(400).json({ error: 'No se pudo almacenar la imagen' });
+        }
+
+        // Guardar la referencia en la base de datos
+        const imagenGuardada = await UsuarioImagen.create({
+            imagen: imagen,
+            usuarioId: id,
+            estado: 'AC'
+        });
+
+        res.status(201).json({
+            mensaje: 'Imagen guardada correctamente',
+            datos: {
+                id: imagenGuardada.id,
+                imagen: imagenGuardada.imagen,
+                ruta: `/img/usuarios/${imagen}`,
+                usuarioId: imagenGuardada.usuarioId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al guardar imagen:', error);
+        res.status(500).json({ 
+            error: 'Error al guardar la imagen', 
+            detalles: error.message 
+        });
     }
 };

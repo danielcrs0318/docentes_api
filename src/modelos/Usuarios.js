@@ -22,4 +22,4 @@ const Usuario = db.define(
 modeloDocentes.hasMany(Usuario, { foreignKey: 'docenteId' });
 Usuario.belongsTo(modeloDocentes, { foreignKey: 'docenteId' });
 
-module.exports= Usuario;
+module.exports = Usuario;

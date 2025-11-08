@@ -16,6 +16,7 @@ const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes
 const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
 const modeloAsistencias = require('./modelos/Asistencia');
 const modeloUsuarios = require('./modelos/Usuarios');
+const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -91,6 +92,10 @@ db.authenticate().then(async (data) => {
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
+  // Relaciones de Usuario e Imágenes
+  modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
+  modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
+
   await modeloPeriodos.sync({ alter: true }).then((data) => {
     console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
@@ -156,6 +161,12 @@ db.authenticate().then(async (data) => {
 
   await modeloUsuarios.sync({ alter: true }).then((data) => {
     console.log("Tabla Usuarios sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloUsuarioImagenes.sync({ alter: true }).then((data) => {
+    console.log("Tabla UsuarioImagenes sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });

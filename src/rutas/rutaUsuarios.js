@@ -221,4 +221,8 @@ rutas.delete('/eliminar', [
     query('id').notEmpty().withMessage('El id es obligatorio'),
 ], controladorUsuarios.Eliminar);
 
+rutas.post('/imagenes', 
+    controladorUsuarios.validarImagenUsuario, 
+    controladorUsuarios.guardarImagenUsuario);  // <-- Este controlador no existe
+// Exportar las rutas
 module.exports = rutas;
