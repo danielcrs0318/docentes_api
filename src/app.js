@@ -87,7 +87,7 @@ db.authenticate().then(async (data) => {
   modeloEstudiantes.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
 
   // Docentes - Clases
-  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
+  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clasesAsignadas' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
   // Usuarios - Imágenes
@@ -102,84 +102,9 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
-  // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
-  // podría requerir una migración o sincronización con alter)
-
-  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
-  modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
-
   // Relaciones de Usuario e Imágenes
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
-
-  await modeloPeriodos.sync({ alter: true }).then((data) => {
-    console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloAulas.sync().then((data) => {
-    console.log("Tabla Aulas creada con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  // Sincronizar primero Docentes antes de Clases porque Clases tiene FK -> Docentes
-  await modeloDocentes.sync().then((data) => {
-    console.log("Tabla Docentes creada con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloClases.sync({ alter: true }).then((data) => {
-    console.log("Tabla Clases sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloSecciones.sync({ alter: true }).then((data) => {
-    console.log("Tabla Secciones sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloParciales.sync().then((data) => {
-    console.log("Tabla Parciales creada con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloEstudiantes.sync({ alter: true }).then((data) => {
-    console.log("Tabla Estudiantes sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloEstudiantesClases.sync({ alter: true }).then((data) => {
-    console.log("Tabla EstudiantesClases RECREADA (alter:true) - ÍNDICES CORREGIDOS");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloEvaluaciones.sync({ alter: true }).then((data) => {
-    console.log("Tabla Evaluaciones sincronizada");
-  }).catch((err) => { console.error(err); });
-
-  await modeloEvaluacionesEstudiantes.sync({ alter: true }).then((data) => {
-    console.log("Tabla EvaluacionesEstudiantes sincronizada");
-  }).catch((err) => { console.error(err); });
-
-  await modeloAsistencias.sync({ alter: true }).then((data) => {
-    console.log("Tabla Asistencias sincronizada");
-  }).catch((err) => {
-    console.error(err);
-  });
-
-  await modeloUsuarios.sync({ alter: true }).then((data) => {
-    console.log("Tabla Usuarios sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
 
   // Sincronizar modelos con la base de datos
   await modeloPeriodos.sync({ alter: true });
