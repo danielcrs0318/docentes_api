@@ -97,7 +97,7 @@ rutas.post('/iniciar-sesion', [
  *       200:
  *         description: PIN enviado al correo exitosamente
  */
-rutas.post('/solicitar-reset', [
+rutas.post('/solicitar-restablecimiento', [
     body('correo').isEmail().withMessage('Correo inválido'),
 ], controladorUsuarios.solicitarRestablecimiento);
 

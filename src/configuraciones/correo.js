@@ -20,8 +20,13 @@ const enviarCorreo = async (destinatario, asunto, contenido) => {
         });
         return true;
     } catch (error) {
-        console.error('Error al enviar correo:', error);
-        return false;
+        console.error('Error detallado al enviar correo:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            command: error.command
+        });
+        throw error; // Propagar el error para mejor debugging
     }
 };
 

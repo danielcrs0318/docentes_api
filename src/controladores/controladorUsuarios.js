@@ -92,10 +92,8 @@ exports.Eliminar = async (req, res) => {
     }
 };
 
-const getToken = (payload) => {
-    return jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: '1d'
-    });
+const getToken = (payload, options = {}) => {
+    return jwt.sign(payload, process.env.JWT_SECRET, options);
 };
 
 const generarPin = () => {
@@ -148,7 +146,7 @@ exports.iniciarSesion = async (req, res) => {
         usuario.intentos = 0;
         await usuario.save();
 
-        const token = getToken({ id: usuario.id });
+        const token = getToken({ id: usuario.id }, { expiresIn: '1d' });
         return res.status(200).json({
             token,
             usuario: {
@@ -202,13 +200,17 @@ exports.solicitarRestablecimiento = async (req, res) => {
         );
 
         if (!enviado) {
-            return res.status(500).json({ error: 'Error al enviar el correo' });
+            return res.status(500).json({ error: 'Error al enviar el correo', detalles: error.message });
         }
 
         res.status(200).json({ mensaje: 'PIN enviado al correo' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error en el servidor' });
+        console.error('Error detallado:', error);
+        res.status(500).json({ 
+            error: 'Error en el servidor',
+            detalles: error.message,
+            stack: error.stack
+        });
     }
 };
 
@@ -226,15 +228,34 @@ exports.validarPin = async (req, res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
+        // Verificar que exista un PIN
+        if (!usuario.pin || !usuario.pinExpiracion) {
+            return res.status(400).json({ error: 'No hay solicitud de restablecimiento activa' });
+        }
+
+        // Verificar que el PIN coincida
         if (usuario.pin !== pin) {
             return res.status(400).json({ error: 'PIN inválido' });
         }
 
-        if (new Date() > usuario.pinExpiracion) {
-            return res.status(400).json({ error: 'PIN expirado' });
+        // Verificar la expiración del PIN
+        const ahora = new Date();
+        const expiracion = new Date(usuario.pinExpiracion);
+        if (ahora >= expiracion) {
+            // Limpiar PIN expirado
+            usuario.pin = null;
+            usuario.pinExpiracion = null;
+            await usuario.save();
+            return res.status(400).json({ error: 'PIN expirado. Solicita uno nuevo.' });
         }
 
-        const token = getToken({ id: usuario.id, pin: true });
+        // Generar token especial para restablecimiento
+        const token = getToken({ 
+            id: usuario.id, 
+            pin: true
+        }, {
+            expiresIn: '15m' // El token expira en 15 minutos, igual que el PIN
+        });
         res.status(200).json({ token });
     } catch (error) {
         console.error(error);
