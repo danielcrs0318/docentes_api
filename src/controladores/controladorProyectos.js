@@ -9,7 +9,7 @@ exports.ListarProyectos = async (req, res) => {
       include: [{
         model: Estudiantes,
         as: 'estudiantes',
-        attributes: ['id', 'nombre', 'apellido', 'correo']
+        attributes: ['id', 'nombre', 'correo']
       }]
     });
     res.json(proyectos);
@@ -29,7 +29,7 @@ exports.ObtenerProyecto = async (req, res) => {
       include: [{
         model: Estudiantes,
         as: 'estudiantes',
-        attributes: ['id', 'nombre', 'apellido', 'correo']
+        attributes: ['id', 'nombre', 'correo']
       }]
     });
 
