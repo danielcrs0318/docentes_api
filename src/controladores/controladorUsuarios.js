@@ -160,7 +160,7 @@ exports.iniciarSesion = async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: 'Error en el servidor' });
+        return res.status(500).json({ error: 'Error en el servidor' , detalles: error.message });
     }
 };
 
