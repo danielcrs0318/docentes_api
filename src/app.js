@@ -13,10 +13,9 @@ const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
 const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
-
 const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
-
 const modeloAsistencias = require('./modelos/Asistencia');
+const modeloUsuarios = require('./modelos/Usuarios');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -155,6 +154,12 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloUsuarios.sync({ alter: true }).then((data) => {
+    console.log("Tabla Usuarios sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   // Montar rutas e iniciar servidor ahora que los modelos y asociaciones están listos
   mountServerAndRoutes();
 
@@ -174,6 +179,9 @@ function mountServerAndRoutes() {
   app.use('/api/docentes', require('./rutas/rutaDocentes'));
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
+  app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
+
+  // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // Endpoint para obtener el JSON de Swagger
