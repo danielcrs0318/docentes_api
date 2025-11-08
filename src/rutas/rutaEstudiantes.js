@@ -15,10 +15,7 @@ const Clases = require('../modelos/Clases');
  *       type: object
  *       required:
  *         - nombre
- *         - apellido
  *         - correo
- *         - seccionId
- *         - claseId
  *       properties:
  *         id:
  *           type: integer
@@ -27,27 +24,36 @@ const Clases = require('../modelos/Clases');
  *           type: string
  *           minLength: 2
  *           maxLength: 100
- *           description: Nombre del estudiante
- *         apellido:
- *           type: string
- *           minLength: 2
- *           maxLength: 100
- *           description: Apellido del estudiante
+ *           description: Nombre completo del estudiante
  *         correo:
  *           type: string
  *           format: email
  *           description: Correo electrónico único del estudiante
- *         seccionId:
- *           type: integer
- *           description: ID de la sección a la que pertenece
- *         claseId:
- *           type: integer
- *           description: ID de la clase a la que pertenece
  *         estado:
  *           type: string
  *           enum: [ACTIVO, INACTIVO, RETIRADO]
  *           default: ACTIVO
  *           description: Estado del estudiante
+ *         clases:
+ *           type: array
+ *           description: Clases en las que está inscrito el estudiante
+ *           items:
+ *             type: object
+ *             properties:
+ *               id:
+ *                 type: integer
+ *               codigo:
+ *                 type: string
+ *               nombre:
+ *                 type: string
+ *               EstudiantesClases:
+ *                 type: object
+ *                 properties:
+ *                   seccionId:
+ *                     type: integer
+ *                   fechaInscripcion:
+ *                     type: string
+ *                     format: date-time
  *
  * tags:
  *   name: Estudiantes
@@ -109,31 +115,17 @@ rutas.get('/listar',
  *             type: object
  *             required:
  *               - nombre
- *               - apellido
  *               - correo
- *               - seccionId
- *               - claseId
  *             properties:
  *               nombre:
  *                 type: string
  *                 minLength: 2
  *                 maxLength: 100
- *                 description: Nombre del estudiante
- *               apellido:
- *                 type: string
- *                 minLength: 2
- *                 maxLength: 100
- *                 description: Apellido del estudiante
+ *                 description: Nombre completo del estudiante
  *               correo:
  *                 type: string
  *                 format: email
  *                 description: Correo electrónico único del estudiante
- *               seccionId:
- *                 type: integer
- *                 description: ID de la sección
- *               claseId:
- *                 type: integer
- *                 description: ID de la clase
  *               estado:
  *                 type: string
  *                 enum: [ACTIVO, INACTIVO, RETIRADO]
@@ -159,23 +151,11 @@ rutas.post('/guardar', [
         .withMessage('El nombre es obligatorio')
         .isLength({ min: 2, max: 100 })
         .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
-    body('apellido')
-        .optional()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('El apellido debe tener entre 2 y 100 caracteres'),
     body('correo')
         .notEmpty()
         .withMessage('El correo es obligatorio')
         .isEmail()
         .withMessage('Debe ser un correo electrónico válido'),
-    body('seccionId')
-        .optional()
-        .isInt()
-        .withMessage('El ID de sección debe ser un número entero'),
-    body('claseId')
-        .optional()
-        .isInt()
-        .withMessage('El ID de clase debe ser un número entero'),
     body('estado')
         .optional()
         .isIn(['ACTIVO', 'INACTIVO', 'RETIRADO'])
@@ -203,10 +183,7 @@ rutas.post('/guardar', [
  *             type: object
  *             required:
  *               - nombre
- *               - apellido
  *               - correo
- *               - seccionId
- *               - claseId
  *               - estado
  *             properties:
  *               nombre:
@@ -214,21 +191,10 @@ rutas.post('/guardar', [
  *                 minLength: 2
  *                 maxLength: 100
  *                 description: Nuevo nombre del estudiante
- *               apellido:
- *                 type: string
- *                 minLength: 2
- *                 maxLength: 100
- *                 description: Nuevo apellido del estudiante
  *               correo:
  *                 type: string
  *                 format: email
  *                 description: Nuevo correo electrónico
- *               seccionId:
- *                 type: integer
- *                 description: Nuevo ID de la sección
- *               claseId:
- *                 type: integer
- *                 description: Nuevo ID de la clase
  *               estado:
  *                 type: string
  *                 enum: [ACTIVO, INACTIVO, RETIRADO]
@@ -255,23 +221,11 @@ rutas.put('/editar', [
         .withMessage('El nombre es obligatorio')
         .isLength({ min: 2, max: 100 })
         .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
-    body('apellido')
-        .optional()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('El apellido debe tener entre 2 y 100 caracteres'),
     body('correo')
         .notEmpty()
         .withMessage('El correo es obligatorio')
         .isEmail()
         .withMessage('Debe ser un correo electrónico válido'),
-    body('seccionId')
-        .optional()
-        .isInt()
-        .withMessage('El ID de sección debe ser un número entero'),
-    body('claseId')
-        .optional()
-        .isInt()
-        .withMessage('El ID de clase debe ser un número entero'),
     body('estado')
         .optional()
         .isIn(['ACTIVO', 'INACTIVO', 'RETIRADO'])
@@ -312,7 +266,19 @@ rutas.delete('/eliminar', [
  * @swagger
  * /api/estudiantes/importar-excel:
  *   post:
- *     summary: Importar estudiantes desde un archivo Excel
+ *     summary: Importar estudiantes desde un archivo Excel e inscribirlos en una clase y sección
+ *     description: |
+ *       Lee un archivo Excel con el siguiente formato:
+ *       - Celda B1: Código de la clase (se busca o crea automáticamente)
+ *       - Celda B2: Nombre de la clase (requerido para crear la clase si no existe)
+ *       - Celda B3: Nombre de la sección (se busca o crea automáticamente)
+ *       - Celda B4: Fecha de inicio del periodo (opcional, formato fecha Excel)
+ *       - Celda B5: Fecha de fin del periodo (opcional, formato fecha Excel)
+ *       - Desde fila 8 columnas B,C,D: Cuenta, Nombre, Correo de estudiantes
+ *       
+ *       La clase se crea automáticamente si no existe usando B1 (código) y B2 (nombre).
+ *       La sección se crea automáticamente si no existe. El aulaId es opcional.
+ *       El periodo se crea automáticamente si B4 y B5 tienen fechas y no existe un periodo con esas fechas.
  *     tags: [Estudiantes]
  *     requestBody:
  *       required: true
@@ -327,9 +293,12 @@ rutas.delete('/eliminar', [
  *                 type: string
  *                 format: binary
  *                 description: Archivo Excel (.xlsx o .xls) con los datos de estudiantes
+ *               aulaId:
+ *                 type: integer
+ *                 description: ID del aula para asignar a la sección (opcional, si no se proporciona la sección se crea sin aula)
  *     responses:
  *       201:
- *         description: Estudiantes importados exitosamente
+ *         description: Estudiantes importados e inscritos exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -337,17 +306,59 @@ rutas.delete('/eliminar', [
  *               properties:
  *                 message:
  *                   type: string
+ *                 periodo:
+ *                   type: object
+ *                   nullable: true
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     nombre:
+ *                       type: string
+ *                       nullable: true
+ *                     fechaInicio:
+ *                       type: string
+ *                       format: date
+ *                     fechaFin:
+ *                       type: string
+ *                       format: date
+ *                     creado:
+ *                       type: boolean
+ *                       description: Indica si el periodo fue creado durante la importación
+ *                 clase:
+ *                   type: object
+ *                   properties:
+ *                     codigo:
+ *                       type: string
+ *                     nombre:
+ *                       type: string
+ *                     creada:
+ *                       type: boolean
+ *                       description: Indica si la clase fue creada durante la importación
+ *                 seccion:
+ *                   type: object
+ *                   properties:
+ *                     nombre:
+ *                       type: string
+ *                     aula:
+ *                       type: integer
+ *                       nullable: true
+ *                       description: ID del aula asignada (puede ser null)
+ *                     creada:
+ *                       type: boolean
+ *                       description: Indica si la sección fue creada durante la importación
  *                 resumen:
  *                   type: object
  *                   properties:
- *                     total:
+ *                     totalLeidos:
  *                       type: integer
- *                     creados:
+ *                     estudiantesNuevos:
+ *                       type: integer
+ *                     inscripcionesCreadas:
  *                       type: integer
  *                     errores:
  *                       type: integer
  *       400:
- *         description: Error en el archivo o datos inválidos
+ *         description: Error en el archivo, datos inválidos o falta nombre de clase en B2
  *       500:
  *         description: Error al procesar el archivo
  */

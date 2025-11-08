@@ -6,7 +6,7 @@ const Periodos = db.define(
     {
         nombre: {
             type: DataTypes.STRING(50),
-            allowNull: false
+            allowNull: true
         },
         fechaInicio: {
             type: DataTypes.DATE,

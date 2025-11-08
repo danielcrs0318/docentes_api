@@ -1,6 +1,8 @@
 const Estudiantes = require('../modelos/Estudiantes');
 const Secciones = require('../modelos/Secciones');
 const Clases = require('../modelos/Clases');
+const EstudiantesClases = require('../modelos/EstudiantesClases');
+const Periodos = require('../modelos/Periodos');
 const { validationResult } = require('express-validator');
 const XLSX = require('xlsx');
 const fs = require('fs');
@@ -9,17 +11,24 @@ const fs = require('fs');
 exports.ListarEstudiantes = async (req, res) => {
     try {
         const estudiantes = await Estudiantes.findAll({
-            attributes: ['id', 'nombre', 'apellido', 'correo', 'estado'],
+            attributes: ['id', 'nombre', 'correo', 'estado'],
             include: [
                 {
-                    model: Secciones,
-                    as: 'seccion',
-                    attributes: ['id', 'nombre']
-                },
-                {
-                    model: Clases,
-                    as: 'clase',
-                    attributes: ['id', 'nombre']
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    attributes: ['id', 'fechaInscripcion'],
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
                 }
             ]
         });
@@ -37,7 +46,7 @@ exports.CrearEstudiante = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nombre, apellido, correo, seccionId, claseId, estado } = req.body;
+    const { nombre, correo, estado } = req.body;
 
     try {
         // Verificar si el correo ya existe
@@ -46,30 +55,12 @@ exports.CrearEstudiante = async (req, res) => {
             return res.status(400).json({ error: 'Ya existe un estudiante con ese correo' });
         }
 
-        // Verificar si la sección existe (solo si se proporciona)
-        if (seccionId) {
-            const seccionExistente = await Secciones.findByPk(seccionId);
-            if (!seccionExistente) {
-                return res.status(400).json({ error: 'La sección especificada no existe' });
-            }
-        }
-
-        // Verificar si la clase existe (solo si se proporciona)
-        if (claseId) {
-            const claseExistente = await Clases.findByPk(claseId);
-            if (!claseExistente) {
-                return res.status(400).json({ error: 'La clase especificada no existe' });
-            }
-        }
-
         const nuevoEstudiante = await Estudiantes.create({
             nombre,
-            apellido,
             correo,
-            seccionId: seccionId || null,
-            claseId: claseId || null,
             estado: estado || 'ACTIVO'
         });
+        
         res.status(201).json({
             message: 'Estudiante creado exitosamente',
             estudiante: nuevoEstudiante
@@ -87,7 +78,7 @@ exports.ActualizarEstudiante = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
-    const { nombre, apellido, correo, seccionId, claseId, estado } = req.body;
+    const { nombre, correo, estado } = req.body;
     const { id } = req.query;
 
     try {
@@ -98,33 +89,19 @@ exports.ActualizarEstudiante = async (req, res) => {
 
         // Verificar si el correo ya existe en otro estudiante
         if (correo !== estudiante.correo) {
-            const correoExistente = await Estudiantes.findOne({ where: { correo } });
+            const correoExistente = await Estudiantes.findOne({ 
+                where: { 
+                    correo,
+                    id: { [Sequelize.Op.ne]: id }
+                }
+            });
             if (correoExistente) {
                 return res.status(400).json({ error: 'Ya existe un estudiante con ese correo' });
             }
         }
 
-        // Verificar si la sección existe (solo si se proporciona)
-        if (seccionId) {
-            const seccionExistente = await Secciones.findByPk(seccionId);
-            if (!seccionExistente) {
-                return res.status(400).json({ error: 'La sección especificada no existe' });
-            }
-        }
-
-        // Verificar si la clase existe (solo si se proporciona)
-        if (claseId) {
-            const claseExistente = await Clases.findByPk(claseId);
-            if (!claseExistente) {
-                return res.status(400).json({ error: 'La clase especificada no existe' });
-            }
-        }
-
         estudiante.nombre = nombre;
-        estudiante.apellido = apellido;
         estudiante.correo = correo;
-        estudiante.seccionId = seccionId || null;
-        estudiante.claseId = claseId || null;
         estudiante.estado = estado;
 
         await estudiante.save();
@@ -167,18 +144,123 @@ exports.CargarDesdeExcel = async (req, res) => {
             return res.status(400).json({ error: 'No se ha proporcionado ningún archivo' });
         }
 
+        const { aulaId } = req.body;
+
         // Leer el archivo Excel
         const workbook = XLSX.readFile(req.file.path);
         const sheetName = 'Sheet1';
         
         // Verificar que exista la hoja Sheet1
         if (!workbook.Sheets[sheetName]) {
-            // Eliminar el archivo temporal
             fs.unlinkSync(req.file.path);
             return res.status(400).json({ error: 'El archivo no contiene una hoja llamada "Sheet1"' });
         }
 
         const sheet = workbook.Sheets[sheetName];
+
+        // Leer las celdas B1, B2, B3, B4, B5
+        const codigoClaseCell = sheet['B1'];
+        const nombreClaseCell = sheet['B2'];
+        const nombreSeccionCell = sheet['B3'];
+        const fechaInicioCell = sheet['B4'];
+        const fechaFinCell = sheet['B5'];
+
+        if (!codigoClaseCell || !codigoClaseCell.v) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ error: 'No se encontró el código de clase en la celda B1' });
+        }
+
+        const codigoClase = codigoClaseCell.v;
+        const nombreClase = nombreClaseCell ? nombreClaseCell.v : null;
+        const nombreSeccion = nombreSeccionCell ? nombreSeccionCell.v : null;
+        const fechaInicio = fechaInicioCell ? fechaInicioCell.v : null;
+        const fechaFin = fechaFinCell ? fechaFinCell.v : null;
+
+        // Validar que se haya proporcionado el nombre de la clase
+        if (!nombreClase) {
+            fs.unlinkSync(req.file.path);
+            return res.status(400).json({ 
+                error: 'No se encontró el nombre de clase en la celda B2. Es requerido para crear o buscar la clase.' 
+            });
+        }
+
+        // Buscar o crear el periodo basado en fechas
+        let periodo = null;
+        let periodoCreado = false;
+
+        if (fechaInicio && fechaFin) {
+            // Convertir fechas de Excel a JavaScript Date
+            let fechaInicioDate, fechaFinDate;
+
+            if (typeof fechaInicio === 'number') {
+                // Excel almacena fechas como números (días desde 1900-01-01)
+                fechaInicioDate = new Date((fechaInicio - 25569) * 86400 * 1000);
+            } else {
+                fechaInicioDate = new Date(fechaInicio);
+            }
+
+            if (typeof fechaFin === 'number') {
+                fechaFinDate = new Date((fechaFin - 25569) * 86400 * 1000);
+            } else {
+                fechaFinDate = new Date(fechaFin);
+            }
+
+            // Buscar periodo existente con las mismas fechas
+            periodo = await Periodos.findOne({
+                where: {
+                    fechaInicio: fechaInicioDate,
+                    fechaFin: fechaFinDate
+                }
+            });
+
+            if (!periodo) {
+                // Crear nuevo periodo
+                periodo = await Periodos.create({
+                    nombre: null, // Se agregará posteriormente
+                    fechaInicio: fechaInicioDate,
+                    fechaFin: fechaFinDate
+                });
+                periodoCreado = true;
+            }
+        }
+
+        // Buscar o crear la clase
+        let clase = await Clases.findOne({ where: { codigo: codigoClase } });
+        let claseCreada = false;
+        
+        if (!clase) {
+            // Crear la nueva clase
+            clase = await Clases.create({
+                codigo: codigoClase,
+                nombre: nombreClase,
+                diaSemana: [] // Array vacío por defecto
+            });
+            claseCreada = true;
+        }
+
+        // Buscar o crear la sección
+        let seccion = null;
+        let seccionCreada = false;
+        
+        if (nombreSeccion) {
+            seccion = await Secciones.findOne({ 
+                where: { 
+                    nombre: nombreSeccion,
+                    claseId: clase.id 
+                } 
+            });
+
+            if (!seccion) {
+                // Crear la nueva sección automáticamente
+                // Si se proporciona aulaId, se usa; sino se crea con null
+                seccion = await Secciones.create({
+                    nombre: nombreSeccion,
+                    claseId: clase.id,
+                    aulaId: aulaId || null
+                });
+                seccionCreada = true;
+            }
+        }
 
         // Obtener los datos desde la fila 8 hasta la última fila con datos
         const range = XLSX.utils.decode_range(sheet['!ref']);
@@ -238,41 +320,91 @@ exports.CargarDesdeExcel = async (req, res) => {
             });
         }
 
-        // Guardar estudiantes en la base de datos
+        console.log(`📊 Estudiantes leídos del Excel: ${estudiantes.length}`);
+        if (periodo) {
+            console.log(`� Periodo: ${periodo.nombre || 'Sin nombre'} (${periodo.fechaInicio.toISOString().split('T')[0]} - ${periodo.fechaFin.toISOString().split('T')[0]}) ${periodoCreado ? '✨ CREADO' : '✓ Existente'}`);
+        }
+        console.log(`�📚 Clase: ${clase.nombre} (${clase.codigo}) ${claseCreada ? '✨ CREADA' : '✓ Existente'}`);
+        console.log(`📖 Sección: ${seccion ? seccion.nombre : 'Sin sección'} ${seccionCreada ? '✨ CREADA' : '✓ Existente'}`);
+
+        // Procesar estudiantes
         const estudiantesCreados = [];
+        const inscripcionesCreadas = [];
         const estudiantesConError = [];
 
         for (const est of estudiantes) {
             try {
-                // Verificar si el correo ya existe
-                const existente = await Estudiantes.findOne({ where: { correo: est.correo } });
-                if (existente) {
+                // Buscar o crear estudiante
+                let estudiante = await Estudiantes.findOne({ where: { correo: est.correo } });
+                
+                if (!estudiante) {
+                    estudiante = await Estudiantes.create({
+                        nombre: est.nombre,
+                        correo: est.correo,
+                        estado: 'ACTIVO'
+                    });
+                    estudiantesCreados.push({
+                        cuenta: est.cuenta,
+                        nombre: est.nombre,
+                        correo: est.correo,
+                        id: estudiante.id
+                    });
+                }
+
+                // Crear inscripción en EstudiantesClases (siempre, con o sin sección)
+                // Verificar si ya existe la inscripción
+                const whereCondition = {
+                    estudianteId: estudiante.id,
+                    claseId: clase.id
+                };
+                
+                if (seccion) {
+                    whereCondition.seccionId = seccion.id;
+                }
+
+                const inscripcionExistente = await EstudiantesClases.findOne({
+                    where: whereCondition
+                });
+
+                if (inscripcionExistente) {
                     estudiantesConError.push({
                         cuenta: est.cuenta,
                         correo: est.correo,
-                        error: 'El correo ya está registrado'
+                        error: 'El estudiante ya está inscrito en esta clase y sección'
                     });
                     continue;
                 }
 
-                // Por ahora, los estudiantes se crean sin sección ni clase
-                // Puedes modificar esto según tus necesidades
-                const nuevoEstudiante = await Estudiantes.create({
-                    nombre: est.nombre,
-                    apellido: '', // El Excel no tiene apellido, puedes ajustar esto
-                    correo: est.correo,
-                    seccionId: null, // Ajustar según necesites
-                    claseId: null, // Ajustar según necesites
-                    estado: 'ACTIVO'
-                });
+                const datosInscripcion = {
+                    estudianteId: estudiante.id,
+                    claseId: clase.id,
+                    seccionId: seccion ? seccion.id : null
+                };
 
-                estudiantesCreados.push({
+                console.log(`➕ Creando inscripción para ${est.nombre}:`, datosInscripcion);
+
+                await EstudiantesClases.create(datosInscripcion);
+
+                inscripcionesCreadas.push({
                     cuenta: est.cuenta,
                     nombre: est.nombre,
                     correo: est.correo,
-                    id: nuevoEstudiante.id
+                    clase: clase.nombre,
+                    seccion: seccion ? seccion.nombre : 'Sin sección'
                 });
+
             } catch (error) {
+                console.error(`❌ Error procesando estudiante ${est.correo}:`, error);
+                console.error('Detalles del error:', {
+                    message: error.message,
+                    name: error.name,
+                    errors: error.errors ? error.errors.map(e => ({
+                        message: e.message,
+                        type: e.type,
+                        path: e.path,
+                        value: e.value
+                    })) : 'No hay errores de validación detallados'
+                });
                 estudiantesConError.push({
                     cuenta: est.cuenta,
                     correo: est.correo,
@@ -283,12 +415,31 @@ exports.CargarDesdeExcel = async (req, res) => {
 
         res.status(201).json({
             message: 'Proceso de carga completado',
+            periodo: periodo ? {
+                id: periodo.id,
+                nombre: periodo.nombre,
+                fechaInicio: periodo.fechaInicio,
+                fechaFin: periodo.fechaFin,
+                creado: periodoCreado
+            } : null,
+            clase: {
+                codigo: clase.codigo,
+                nombre: clase.nombre,
+                creada: claseCreada
+            },
+            seccion: seccion ? {
+                nombre: seccion.nombre,
+                aula: seccion.aulaId,
+                creada: seccionCreada
+            } : null,
             resumen: {
-                total: estudiantes.length,
-                creados: estudiantesCreados.length,
+                totalLeidos: estudiantes.length,
+                estudiantesNuevos: estudiantesCreados.length,
+                inscripcionesCreadas: inscripcionesCreadas.length,
                 errores: estudiantesConError.length + errores.length
             },
             estudiantesCreados: estudiantesCreados,
+            inscripcionesCreadas: inscripcionesCreadas,
             erroresValidacion: errores,
             erroresGuardado: estudiantesConError
         });

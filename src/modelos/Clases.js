@@ -18,14 +18,21 @@ const Clases = db.define(
             type: DataTypes.STRING(50),
             allowNull: false
         },
-        /*docenteId: {
+        docenteId: {
             type: DataTypes.INTEGER,
             allowNull: true,
             references: {
                 model: 'Docentes',
                 key: 'id'
             }
-        },*/
+        },
+        creditos: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            validate: {
+                isIn: [[3, 4]] // Solo 3 o 4 créditos
+            }
+        },
         //función para días de la semana ejemplo: ["Lunes", "Miércoles", "Viernes"]
         diaSemana: {
             type: DataTypes.JSON,
