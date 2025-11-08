@@ -11,13 +11,13 @@ const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
-const modeloEvaluaciones = require('./modelos/Evaluaciones');
-const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
-const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
-const modeloAsistencias = require('./modelos/Asistencia');
 const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
-
+const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
+const modeloEvaluaciones = require('./modelos/Evaluaciones');
+const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
+const modeloAsistencias = require('./modelos/Asistencia');
+const modeloProyectos = require('./modelos/Proyectos');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -43,15 +43,12 @@ db.authenticate().then(async (data) => {
   modeloSecciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
   // Relaciones con tabla intermedia EstudiantesClases
-  // EstudiantesClases pertenece a Estudiantes
   modeloEstudiantesClases.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
   modeloEstudiantes.hasMany(modeloEstudiantesClases, { foreignKey: 'estudianteId', as: 'inscripciones' });
 
-  // EstudiantesClases pertenece a Clases
   modeloEstudiantesClases.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
   modeloClases.hasMany(modeloEstudiantesClases, { foreignKey: 'claseId', as: 'inscripciones' });
 
-  // EstudiantesClases pertenece a Secciones
   modeloEstudiantesClases.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
   modeloSecciones.hasMany(modeloEstudiantesClases, { foreignKey: 'seccionId', as: 'inscripciones' });
 
@@ -65,26 +62,45 @@ db.authenticate().then(async (data) => {
   modeloPeriodos.hasMany(modeloEvaluaciones, { foreignKey: 'periodoId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
 
+  // Evaluaciones - Estudiantes
   modeloEvaluaciones.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'evaluacionId', as: 'asignaciones' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEvaluaciones, { foreignKey: 'evaluacionId', as: 'evaluacion' });
 
   modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
 
-
+  // Asistencias - Relaciones
   modeloAsistencias.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
   modeloEstudiantes.hasMany(modeloAsistencias, { foreignKey: 'estudianteId', as: 'asistencias' });
 
-  // Clases - Asistencias
   modeloClases.hasMany(modeloAsistencias, { foreignKey: 'claseId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
-  // periodos - Asistencias
   modeloPeriodos.hasMany(modeloAsistencias, { foreignKey: 'periodoId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
-  // parciales - Asistencias
+
   modeloParciales.hasMany(modeloAsistencias, { foreignKey: 'parcialId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
+
+  // Proyectos - Estudiantes
+  modeloProyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
+
+  // Docentes - Clases
+  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
+  modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+
+  // Usuarios - Imágenes
+  modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
+  modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
+
+  // Secciones - Estudiantes
+  modeloSecciones.hasMany(modeloEstudiantes, { foreignKey: 'seccionId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
+
+  // Clases - Estudiantes
+  modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
   // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
   // podría requerir una migración o sincronización con alter)
@@ -165,22 +181,23 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloUsuarioImagenes.sync({ alter: true }).then((data) => {
-    console.log("Tabla UsuarioImagenes sincronizada (alter:true) con un Modelo exitosamente");
-  }).catch((err) => {
-    console.error(err);
-  });
+  // Sincronizar modelos con la base de datos
+  await modeloPeriodos.sync({ alter: true });
+  await modeloAulas.sync();
+  await modeloDocentes.sync();
+  await modeloClases.sync({ alter: true });
+  await modeloSecciones.sync({ alter: true });
+  await modeloParciales.sync();
+  await modeloEstudiantes.sync({ alter: true });
+  await modeloEstudiantesClases.sync({ alter: true });
+  await modeloEvaluaciones.sync({ alter: true });
+  await modeloEvaluacionesEstudiantes.sync({ alter: true });
+  await modeloAsistencias.sync({ alter: true });
+  await modeloUsuarios.sync({ alter: true });
+  await modeloUsuarioImagenes.sync({ alter: true });
+  await modeloProyectos.sync({ alter: true });
 
-  // Montar rutas e iniciar servidor ahora que los modelos y asociaciones están listos
-  mountServerAndRoutes();
-
-
-}).catch((err) => {
-  console.log('Error de conexion: ' + err);
-});
-// Las rutas y servidor se montan después de establecer conexión y sincronizar modelos
-function mountServerAndRoutes() {
-  // rutas
+  // Configurar rutas
   app.use('/api/parciales', require('./rutas/rutaParciales'));
   app.use('/api/periodos', require('./rutas/rutaPeriodos'));
   app.use('/api/aulas', require('./rutas/rutaAulas'));
@@ -188,11 +205,10 @@ function mountServerAndRoutes() {
   app.use('/api/secciones', require('./rutas/rutaSecciones'));
   app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
   app.use('/api/docentes', require('./rutas/rutaDocentes'));
+  app.use('/api/proyectos', require('./rutas/rutaProyectos'));
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
-
-  // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // Endpoint para obtener el JSON de Swagger
@@ -201,12 +217,15 @@ function mountServerAndRoutes() {
     res.send(swaggerSpec);
   });
 
-  // configuramos el puerto
+  // Configurar y iniciar el servidor
   app.set('port', process.env.PORT || 3001);
   app.listen(app.get('port'), () => {
     console.log('Servidor corriendo en el puerto ' + app.get('port'));
   });
-};
+
+}).catch((err) => {
+  console.log('Error de conexion: ' + err);
+});
 
 // Intentar montar servidor tras la conexión a la DB: si la conexión ya sucedió,
 // db.authenticate() habría llamado el .then y sincronizado; sin embargo, para
