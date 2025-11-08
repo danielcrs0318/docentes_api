@@ -18,7 +18,7 @@ const diskStorageUsuarios = multer.diskStorage({
 
             cb(
                 null,
-                "empleados-" +
+                "usuarios-" +
                 Date.now() +
                 uniqueSuffix +
                 "-" +
