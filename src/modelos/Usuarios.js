@@ -8,7 +8,8 @@ const Usuario = db.define(
     {
         login: { type: DataTypes.STRING(50), allowNull: false },
         correo: { type: DataTypes.STRING(150), allowNull: false },
-        pin: { type: DataTypes.STRING(10), allowNull: true, defaultValue: '0000' },
+        pin: { type: DataTypes.STRING(6), allowNull: true },
+        pinExpiracion: { type: DataTypes.DATE, allowNull: true },
         intentos: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
         contrasena: { type: DataTypes.STRING(250), allowNull: false },
         estado:{ type: DataTypes.ENUM('AC', 'IN', 'BL'), allowNull: true, defaultValue: 'AC' }

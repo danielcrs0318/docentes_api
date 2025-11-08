@@ -1,8 +1,9 @@
 const { validationResult } = require('express-validator');
 const Usuarios = require('../modelos/Usuarios');
 const argon2 = require('argon2');
-const { Op, json } = require('sequelize');
-const { get } = require('../rutas/rutaUsuarios');
+const { Op } = require('sequelize');
+const { enviarCorreo } = require('../configuraciones/correo');
+const jwt = require('jsonwebtoken');
 
 exports.Listar = async (req, res) => {
     try {
@@ -91,34 +92,182 @@ exports.Eliminar = async (req, res) => {
     }
 };
 
+const getToken = (payload) => {
+    return jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: '1d'
+    });
+};
+
+const generarPin = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
 exports.iniciarSesion = async (req, res) => {
     const errores = validationResult(req);
     if (!errores.isEmpty()) {
         return res.status(400).json({ errores: errores.array() });
     }
     const { login, contrasena } = req.body;
-    const buscarUsuario = await Usuarios.findOne({
-        where: {
-            [Op.or]: {
-                correo: login,
-                login: login
-            },
-            estado: 'AC'
+    try {
+        const usuario = await Usuarios.findOne({
+            where: {
+                [Op.or]: {
+                    correo: login,
+                    login: login
+                }
+            }
+        });
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
         }
-    });
-    if (!buscarUsuario) {
-        return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-    else {
-        if (argon2.verify(contrasena, buscarUsuario.contrasena)) {
-            const token = getToken({ id: buscarUsuario.id });
-            const data = {
-                token: token,
-                usuario: buscarUsuario
-            };
-            return res.status(200).json(data);
+
+        if (usuario.estado === 'BL') {
+            return res.status(403).json({ error: 'Usuario bloqueado. Contacte al administrador.' });
         }
-        else return res.status(400).json({ errores: 'Error en los datos enviados' });
+
+        if (usuario.estado === 'IN') {
+            return res.status(403).json({ error: 'Usuario inactivo' });
+        }
+
+        const esValida = await argon2.verify(usuario.contrasena, contrasena);
+
+        if (!esValida) {
+            usuario.intentos = (usuario.intentos || 0) + 1;
+            
+            if (usuario.intentos >= 3) {
+                usuario.estado = 'BL';
+                await usuario.save();
+                return res.status(403).json({ error: 'Usuario bloqueado por múltiples intentos fallidos' });
+            }
+            
+            await usuario.save();
+            return res.status(400).json({ error: 'Contraseña incorrecta' });
+        }
+
+        usuario.intentos = 0;
+        await usuario.save();
+
+        const token = getToken({ id: usuario.id });
+        return res.status(200).json({
+            token,
+            usuario: {
+                id: usuario.id,
+                login: usuario.login,
+                correo: usuario.correo,
+                estado: usuario.estado
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'Error en el servidor' });
     }
-    res.json({ mensaje: 'Se envió el correo electrónico' });
+};
+
+exports.solicitarRestablecimiento = async (req, res) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({ errores: errores.array() });
+    }
+
+    try {
+        const { correo } = req.body;
+        const usuario = await Usuarios.findOne({ where: { correo } });
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        if (usuario.estado === 'BL') {
+            return res.status(403).json({ error: 'Usuario bloqueado. Contacte al administrador.' });
+        }
+
+        const pin = generarPin();
+        usuario.pin = pin;
+        usuario.pinExpiracion = new Date(Date.now() + 15 * 60000); // 15 minutos
+        await usuario.save();
+
+        const contenidoCorreo = `
+            <h1>Restablecimiento de Contraseña</h1>
+            <p>Has solicitado restablecer tu contraseña. Usa el siguiente PIN para continuar:</p>
+            <h2>${pin}</h2>
+            <p>Este PIN expirará en 15 minutos.</p>
+            <p>Si no solicitaste este restablecimiento, ignora este correo.</p>
+        `;
+
+        const enviado = await enviarCorreo(
+            usuario.correo,
+            'Restablecimiento de Contraseña',
+            contenidoCorreo
+        );
+
+        if (!enviado) {
+            return res.status(500).json({ error: 'Error al enviar el correo' });
+        }
+
+        res.status(200).json({ mensaje: 'PIN enviado al correo' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+exports.validarPin = async (req, res) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({ errores: errores.array() });
+    }
+
+    try {
+        const { correo, pin } = req.body;
+        const usuario = await Usuarios.findOne({ where: { correo } });
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        if (usuario.pin !== pin) {
+            return res.status(400).json({ error: 'PIN inválido' });
+        }
+
+        if (new Date() > usuario.pinExpiracion) {
+            return res.status(400).json({ error: 'PIN expirado' });
+        }
+
+        const token = getToken({ id: usuario.id, pin: true });
+        res.status(200).json({ token });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+exports.restablecerContrasena = async (req, res) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({ errores: errores.array() });
+    }
+
+    try {
+        const { contrasena } = req.body;
+        const usuario = await Usuarios.findByPk(req.usuario.id);
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        const hash = await argon2.hash(contrasena);
+        usuario.contrasena = hash;
+        usuario.pin = null;
+        usuario.pinExpiracion = null;
+        usuario.intentos = 0;
+        usuario.estado = 'AC';
+        
+        await usuario.save();
+
+        res.status(200).json({ mensaje: 'Contraseña actualizada exitosamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
 };
