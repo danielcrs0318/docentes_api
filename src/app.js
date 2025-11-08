@@ -18,24 +18,6 @@ const Proyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
-require('dotenv').config();
-const express = require('express');
-const morgan = require('morgan');
-const db = require('./configuraciones/db');
-
-// importamos los modelos
-const modeloParciales = require('./modelos/Parciales');
-const modeloPeriodos = require('./modelos/Periodos');
-const modeloAulas = require('./modelos/Aulas');
-const modeloClases = require('./modelos/Clases');
-const modeloSecciones = require('./modelos/Secciones');
-const modeloEstudiantes = require('./modelos/Estudiantes');
-const modeloDocentes = require('./modelos/Docentes');
-const Proyectos = require('./modelos/Proyectos');
-const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
-const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
-const modeloEvaluaciones = require('./modelos/Evaluaciones');
-const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
 const modeloAsistencias = require('./modelos/Asistencia');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
