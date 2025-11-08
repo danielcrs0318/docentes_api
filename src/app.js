@@ -12,13 +12,16 @@ const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
 
-// modelos añadidos por ambas ramas
+// modelos añadidos por ambas ramas (Padilla + master)
+const modeloUsuarios = require('./modelos/Usuarios');
+const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
-const Proyectos = require('./modelos/Proyectos');
+const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
 const modeloAsistencias = require('./modelos/Asistencia');
+
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -27,35 +30,6 @@ const app = express();
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Helper: montar rutas y arrancar servidor (se usa al final)
-function mountServerAndRoutes() {
-  // rutas
-  app.use('/api/parciales', require('./rutas/rutaParciales'));
-  app.use('/api/periodos', require('./rutas/rutaPeriodos'));
-  app.use('/api/aulas', require('./rutas/rutaAulas'));
-  app.use('/api/clases', require('./rutas/rutaClases'));
-  app.use('/api/secciones', require('./rutas/rutaSecciones'));
-  app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
-  app.use('/api/docentes', require('./rutas/rutaDocentes'));
-  app.use('/api/proyectos', require('./rutas/rutaProyectos'));
-  app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
-  app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-  // Endpoint para obtener el JSON de Swagger
-  app.get('/swagger.json', (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
-  });
-
-  // configuramos el puerto
-  app.set('port', process.env.PORT || 3001);
-  app.listen(app.get('port'), () => {
-    console.log('Servidor corriendo en el puerto ' + app.get('port'));
-  });
-}
-
 
 db.authenticate().then(async () => {
   console.log('Base de datos conectada');
@@ -72,7 +46,7 @@ db.authenticate().then(async () => {
   modeloClases.hasMany(modeloSecciones, { foreignKey: 'claseId', as: 'secciones' });
   modeloSecciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
-  // Relaciones con tabla intermedia EstudiantesClases (many-to-many custom)
+  // Relaciones con tabla intermedia EstudiantesClases
   modeloEstudiantesClases.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
   modeloEstudiantes.hasMany(modeloEstudiantesClases, { foreignKey: 'estudianteId', as: 'inscripciones' });
 
@@ -82,7 +56,7 @@ db.authenticate().then(async () => {
   modeloEstudiantesClases.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
   modeloSecciones.hasMany(modeloEstudiantesClases, { foreignKey: 'seccionId', as: 'inscripciones' });
 
-  // Estudiantes - Evaluaciones (vinculación de evaluaciones a estudiantes)
+  // Evaluaciones - asociaciones
   modeloClases.hasMany(modeloEvaluaciones, { foreignKey: 'claseId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
@@ -92,13 +66,14 @@ db.authenticate().then(async () => {
   modeloPeriodos.hasMany(modeloEvaluaciones, { foreignKey: 'periodoId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
 
+  // Evaluaciones - Estudiantes
   modeloEvaluaciones.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'evaluacionId', as: 'asignaciones' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEvaluaciones, { foreignKey: 'evaluacionId', as: 'evaluacion' });
 
   modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
 
-  // Asistencias
+  // Asistencias - Relaciones
   modeloAsistencias.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
   modeloEstudiantes.hasMany(modeloAsistencias, { foreignKey: 'estudianteId', as: 'asistencias' });
 
@@ -111,37 +86,61 @@ db.authenticate().then(async () => {
   modeloParciales.hasMany(modeloAsistencias, { foreignKey: 'parcialId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
 
-  // Proyectos - Estudiantes (versión Padilla)
-  Proyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
-  modeloEstudiantes.belongsTo(Proyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
+  // Proyectos - Estudiantes (de rama Padilla)
+  modeloProyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
 
   // Docentes - Clases
-  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
+  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clasesAsignadas' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
-  // Sincronizaciones (orden pensado para respetar FKs)
-  await modeloPeriodos.sync({ alter: true }).catch(err => console.error(err));
-  await modeloAulas.sync().catch(err => console.error(err));
-  await modeloDocentes.sync().catch(err => console.error(err));
-  await modeloClases.sync({ alter: true }).catch(err => console.error(err));
-  await modeloSecciones.sync({ alter: true }).catch(err => console.error(err));
-  await modeloParciales.sync().catch(err => console.error(err));
-  await modeloEstudiantes.sync({ alter: true }).catch(err => console.error(err));
+  // Usuarios - Imágenes (de rama master)
+  modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
+  modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 
-  // EstudiantesClases: recrear/alter para asegurar índices correctos
-  await modeloEstudiantesClases.sync({ alter: true }).catch(err => console.error(err));
+  // Sincronizar modelos con la base de datos (orden respetando FKs)
+  await modeloPeriodos.sync({ alter: true });
+  await modeloAulas.sync();
+  await modeloDocentes.sync();
+  await modeloClases.sync({ alter: true });
+  await modeloSecciones.sync({ alter: true });
+  await modeloParciales.sync();
+  await modeloEstudiantes.sync({ alter: true });
+  await modeloEstudiantesClases.sync({ alter: true });
+  await modeloEvaluaciones.sync({ alter: true });
+  await modeloEvaluacionesEstudiantes.sync({ alter: true });
+  await modeloAsistencias.sync({ alter: true });
+  await modeloUsuarios.sync({ alter: true });
+  await modeloUsuarioImagenes.sync({ alter: true });
+  await modeloProyectos.sync({ alter: true });
+  // ProyectoEstudiantes comentado hasta decidir política de indices
+  // await ProyectoEstudiantes.sync({ alter: true });
 
-  // Proyectos y tabla intermedia (si procede)
-  await Proyectos.sync({ alter: true }).catch(err => console.error(err));
-  // ProyectoEstudiantes.sync queda comentada hasta decidir política de indices
-  // await ProyectoEstudiantes.sync({ alter: true }).catch(err => console.error(err));
+  // Configurar rutas
+  app.use('/api/parciales', require('./rutas/rutaParciales'));
+  app.use('/api/periodos', require('./rutas/rutaPeriodos'));
+  app.use('/api/aulas', require('./rutas/rutaAulas'));
+  app.use('/api/clases', require('./rutas/rutaClases'));
+  app.use('/api/secciones', require('./rutas/rutaSecciones'));
+  app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
+  app.use('/api/docentes', require('./rutas/rutaDocentes'));
+  app.use('/api/proyectos', require('./rutas/rutaProyectos'));
+  app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
+  app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
+  app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-  await modeloEvaluaciones.sync({ alter: true }).catch(err => console.error(err));
-  await modeloEvaluacionesEstudiantes.sync({ alter: true }).catch(err => console.error(err));
-  await modeloAsistencias.sync({ alter: true }).catch(err => console.error(err));
+  // Endpoint para obtener el JSON de Swagger
+  app.get('/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
 
-  // Montar rutas e iniciar servidor
-  mountServerAndRoutes();
+  // Configurar y iniciar el servidor
+  app.set('port', process.env.PORT || 3001);
+  app.listen(app.get('port'), () => {
+    console.log('Servidor corriendo en el puerto ' + app.get('port'));
+  });
 
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
