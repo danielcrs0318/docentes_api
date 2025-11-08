@@ -1,4 +1,3 @@
-/*
 const db = require('../configuraciones/db');
 const { DataTypes } = require('sequelize');
 
@@ -46,4 +45,3 @@ const ProyectoEstudiantes = db.define(
 );
 
 module.exports = ProyectoEstudiantes;
-*/
