@@ -11,6 +11,7 @@ const modeloClases = require('./modelos/Clases');
 const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
+<<<<<<< HEAD
 const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
@@ -18,6 +19,8 @@ const modeloEvaluaciones = require('./modelos/Evaluaciones');
 const modeloEvaluacionesEstudiantes = require('./modelos/EvaluacionesEstudiantes');
 const modeloAsistencias = require('./modelos/Asistencia');
 const modeloProyectos = require('./modelos/Proyectos');
+=======
+>>>>>>> parent of 1a9ea2f (padiProyectos)
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -102,6 +105,7 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloEstudiantes, { foreignKey: 'claseId', as: 'estudiantes' });
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
+<<<<<<< HEAD
   // Relaciones de Usuario e Imágenes
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
@@ -121,6 +125,12 @@ db.authenticate().then(async (data) => {
   await modeloUsuarios.sync({ alter: true });
   await modeloUsuarioImagenes.sync({ alter: true });
   await modeloProyectos.sync({ alter: true });
+=======
+  // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
+  // podría requerir una migración o sincronización con alter)
+  modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
+  modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+>>>>>>> parent of 1a9ea2f (padiProyectos)
 
   // Configurar rutas
   app.use('/api/parciales', require('./rutas/rutaParciales'));
@@ -142,17 +152,85 @@ db.authenticate().then(async (data) => {
     res.send(swaggerSpec);
   });
 
+<<<<<<< HEAD
   // Configurar y iniciar el servidor
   app.set('port', process.env.PORT || 3001);
   app.listen(app.get('port'), () => {
     console.log('Servidor corriendo en el puerto ' + app.get('port'));
+=======
+  await modeloAulas.sync().then((data) => {
+    console.log("Tabla Aulas creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  // Sincronizar primero Docentes antes de Clases porque Clases tiene FK -> Docentes
+  await modeloDocentes.sync().then((data) => {
+    console.log("Tabla Docentes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloClases.sync({ alter: true }).then((data) => {
+    console.log("Tabla Clases sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloSecciones.sync().then((data) => {
+    console.log("Tabla Secciones creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloParciales.sync().then((data) => {
+    console.log("Tabla Parciales creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloEstudiantes.sync().then((data) => {
+    console.log("Tabla Estudiantes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloDocentes.sync().then((data) => {
+    console.log("Tabla Docentes creada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+>>>>>>> parent of 1a9ea2f (padiProyectos)
   });
 
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
 });
 
+<<<<<<< HEAD
 // Intentar montar servidor tras la conexión a la DB: si la conexión ya sucedió,
 // db.authenticate() habría llamado el .then y sincronizado; sin embargo, para
 // asegurar idempotencia también intentamos montar aquí si aún no se ha montado.
 // Llamamos a mountServerAndRoutes al final del flujo de sincronización anterior.
+=======
+//rutas
+app.use('/api/parciales', require('./rutas/rutaParciales'));
+app.use('/api/periodos', require('./rutas/rutaPeriodos'));
+app.use('/api/aulas', require('./rutas/rutaAulas'));
+app.use('/api/clases', require('./rutas/rutaClases'));
+app.use('/api/secciones', require('./rutas/rutaSecciones'));
+app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
+app.use('/api/docentes', require('./rutas/rutaDocentes'));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Endpoint para obtener el JSON de Swagger
+app.get('/swagger.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+});
+
+// configuramos el puerto
+app.set('port', process.env.PORT || 3001);
+app.listen(app.get('port'), () => {
+  console.log('Servidor corriendo en el puerto ' + app.get('port'));
+});
+>>>>>>> parent of 1a9ea2f (padiProyectos)
