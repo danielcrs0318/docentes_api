@@ -12,6 +12,7 @@ const modeloSecciones = require('./modelos/Secciones');
 const modeloEstudiantes = require('./modelos/Estudiantes');
 const modeloDocentes = require('./modelos/Docentes');
 const Proyectos = require('./modelos/Proyectos');
+const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
 
@@ -44,8 +45,8 @@ db.authenticate().then(async (data) => {
   modeloEstudiantes.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
   // Proyectos - Estudiantes (relación directa uno-a-muchos)
-  modeloProyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
-  modeloEstudiantes.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
+  Proyectos.hasMany(modeloEstudiantes, { foreignKey: 'proyectoId', as: 'estudiantes' });
+  modeloEstudiantes.belongsTo(Proyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
 
   // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
   // podría requerir una migración o sincronización con alter)
@@ -102,6 +103,14 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
   
+  /*
+  await ProyectoEstudiantes.sync({ alter: true }).then((data) => {
+    console.log("Tabla ProyectoEstudiantes sincronizada con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+*/
+
   await modeloDocentes.sync().then((data) => {
     console.log("Tabla Docentes creada con un Modelo exitosamente");
   }).catch((err) => {

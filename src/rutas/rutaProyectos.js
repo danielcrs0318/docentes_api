@@ -1,64 +1,51 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorProyectos = require('../controladores/controladorProyectos');
-const { uploadFile } = require('../configuraciones/multer');
 const rutas = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Proyectos
- *   description: Rutas para gestión de proyectos
- */
-
-/**
- * @swagger
- * /api/proyectos/listar:
- *   get:
- *     summary: Obtener todos los proyectos
- *     tags: [Proyectos]
- *     responses:
- *       200:
- *         description: Lista de proyectos
- */
+/* Listar */
 rutas.get('/listar', controladorProyectos.ListarProyectos);
 
+/* Obtener */
 rutas.get('/obtener', [
-    query('id').notEmpty().isInt().withMessage('id requerido y debe ser entero')
+  query('id').notEmpty().isInt().withMessage('id requerido y debe ser entero')
 ], controladorProyectos.ObtenerProyecto);
 
+/* Guardar */
 rutas.post('/guardar', [
-    body('nombre').notEmpty().withMessage('nombre requerido'),
-    body('fecha_entrega').optional().isISO8601().withMessage('fecha_entrega debe ser fecha ISO')
+  body('nombre').notEmpty().isLength({ min: 2 }).withMessage('nombre obligatorio (min 2 chars)'),
+  body('fecha_entrega').optional().isISO8601().withMessage('fecha_entrega debe ser ISO'),
+  body('estado').optional().isIn(['PENDIENTE','EN_CURSO','ENTREGADO','CERRADO']).withMessage('estado inválido'),
+  body('claseId').optional().isInt().withMessage('claseId debe ser entero'),
+  body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de ids').bail()
 ], controladorProyectos.CrearProyecto);
 
+/* Editar */
 rutas.put('/editar', [
-    query('id').notEmpty().isInt().withMessage('id requerido'),
-    body('nombre').notEmpty().withMessage('nombre requerido')
+  query('id').notEmpty().isInt(),
+  body('nombre').notEmpty().isLength({ min: 2 })
 ], controladorProyectos.ActualizarProyecto);
 
+/* Eliminar */
 rutas.delete('/eliminar', [
-    query('id').notEmpty().isInt().withMessage('id requerido')
+  query('id').notEmpty().isInt()
 ], controladorProyectos.EliminarProyecto);
 
-// Asignar manualmente
+/* Asignar manual */
 rutas.post('/asignar', [
-    body('proyectoId').notEmpty().isInt(),
-    body('estudiantes').isArray().withMessage('estudiantes debe ser arreglo de ids')
+  body('proyectoId').notEmpty().isInt(),
+  body('estudiantes').isArray({ min: 1 }).withMessage('estudiantes debe tener al menos 1 id')
 ], controladorProyectos.AsignarProyecto);
 
-// Asignación aleatoria (tipo rifa)
+/* Asignar aleatorio */
 rutas.post('/asignar-aleatorio', [
-    body('proyectoId').notEmpty().isInt(),
-    body('cantidad').optional().isInt({ min: 1 })
+  body('proyectoId').notEmpty().isInt(),
+  body('cantidad').optional().isInt({ min: 1 })
 ], controladorProyectos.AsignarAleatorio);
 
-// Subir entrega: multipart/form-data campo 'archivo'
-rutas.post('/entregar', uploadFile.single('archivo'), controladorProyectos.SubirEntrega);
-
-// Listar proyectos de un estudiante
+/* Listar por estudiante */
 rutas.get('/por-estudiante', [
-    query('estudianteId').notEmpty().isInt()
+  query('estudianteId').notEmpty().isInt()
 ], controladorProyectos.ListarPorEstudiante);
 
 module.exports = rutas;
