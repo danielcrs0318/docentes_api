@@ -80,7 +80,7 @@ const validacionesAsistencia = [
 
 /**
  * @swagger
- * api/asistencias/listar:
+ * /asistencias/listar:
  *   get:
  *     summary: Lista todas las asistencias
  *     tags: [Asistencias]
@@ -100,7 +100,7 @@ router.get('/listar', controladorAsistencias.listarAsistencias);
 
 /**
  * @swagger
- * api/asistencias/guardar-multiple:
+ * /asistencias/guardar-multiple:
  *   post:
  *     summary: Guarda asistencias para múltiples estudiantes
  *     tags: [Asistencias]
@@ -154,7 +154,7 @@ router.post('/guardar-multiple', validacionesAsistenciaMultiple, controladorAsis
 
 /**
  * @swagger
- * api/asistencias/guardar:
+ * /asistencias/guardar:
  *   post:
  *     summary: Guarda una asistencia individual
  *     tags: [Asistencias]
@@ -176,7 +176,7 @@ router.post('/guardar', validacionesAsistencia, controladorAsistencias.guardarAs
 
 /**
  * @swagger
- * api/asistencias/editar:
+ * /asistencias/editar:
  *   put:
  *     summary: Actualiza una asistencia existente
  *     tags: [Asistencias]
@@ -210,7 +210,7 @@ router.put('/editar', [
 
 /**
  * @swagger
- * api/asistencias/eliminar:
+ * /asistencias/eliminar:
  *   delete:
  *     summary: Elimina una asistencia
  *     tags: [Asistencias]
@@ -236,7 +236,7 @@ router.delete('/eliminar', [
 // Rutas de filtrado
 /**
  * @swagger
- * api/asistencias/filtrar-fecha:
+ * /asistencias/filtrar-fecha:
  *   get:
  *     summary: Filtra asistencias por rango de fechas
  *     tags: [Asistencias]
@@ -276,7 +276,7 @@ router.get('/filtrar-fecha', [
 
 /**
  * @swagger
- * api/asistencias/filtrar-estado-clase:
+ * /asistencias/filtrar-estado-clase:
  *   get:
  *     summary: Filtra asistencias por estado y clase
  *     tags: [Asistencias]
@@ -315,7 +315,7 @@ router.get('/filtrar-estado-clase', [
 
 /**
  * @swagger
- * api/asistencias/calcular-asistencia-perfecta:
+ * /asistencias/calcular-asistencia-perfecta:
  *   get:
  *     summary: Calcula la asistencia perfecta para una clase y parcial
  *     description: |

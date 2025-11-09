@@ -39,7 +39,7 @@ const rutas = Router();
 
 /**
  * @swagger
- * /api/clases/listar:
+ * /clases/listar:
  *   get:
  *     summary: Obtiene la lista de todas las clases
  *     tags: [Clases]
@@ -78,7 +78,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * /api/clases/guardar:
+ * /clases/guardar:
  *   post:
  *     summary: Crea una nueva clase
  *     tags: [Clases]
@@ -138,7 +138,7 @@ rutas.post('/guardar', [
 
 /**
  * @swagger
- * /api/clases/editar:
+ * /clases/editar:
  *   put:
  *     summary: Actualiza una clase existente
  *     tags: [Clases]
@@ -204,7 +204,7 @@ rutas.put('/editar', [
 
 /**
  * @swagger
- * /api/clases/eliminar:
+ * /clases/eliminar:
  *   delete:
  *     summary: Elimina una clase
  *     tags: [Clases]

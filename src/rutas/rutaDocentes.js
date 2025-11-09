@@ -26,7 +26,7 @@ rutas.get('/Listar', controladorDocentes.ListarDocentes);
 
 /**
  * @swagger
- * /api/docentes/Listar:
+ * /docentes/Listar:
  *   get:
  *     summary: Obtener lista de docentes
  *     tags: [Docentes]
@@ -50,7 +50,7 @@ rutas.post('/guardar', [
 
 /**
  * @swagger
- * /api/docentes/guardar:
+ * /docentes/guardar:
  *   post:
  *     summary: Crear un nuevo docente
  *     tags: [Docentes]
@@ -79,7 +79,7 @@ rutas.put('/Editar', [
 
 /**
  * @swagger
- * /api/docentes/Editar:
+ * /docentes/Editar:
  *   put:
  *     summary: Actualizar un docente existente
  *     tags: [Docentes]
@@ -109,7 +109,7 @@ rutas.delete('/Eliminar', [
 
 /**
  * @swagger
- * /api/docentes/Eliminar:
+ * /docentes/Eliminar:
  *   delete:
  *     summary: Eliminar un docente
  *     tags: [Docentes]

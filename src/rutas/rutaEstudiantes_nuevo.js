@@ -42,7 +42,7 @@ const controladorEstudiantes = require('../controladores/controladorEstudiantes'
 
 /**
  * @swagger
- * /api/estudiantes/listar:
+ * /estudiantes/listar:
  *   get:
  *     summary: Listar todos los estudiantes
  *     tags: [Estudiantes]
@@ -60,7 +60,7 @@ router.get('/listar', controladorEstudiantes.ListarEstudiantes);
 
 /**
  * @swagger
- * /api/estudiantes/guardar:
+ * /estudiantes/guardar:
  *   post:
  *     summary: Crear un nuevo estudiante
  *     tags: [Estudiantes]
@@ -107,7 +107,7 @@ router.post('/guardar', [
 
 /**
  * @swagger
- * /api/estudiantes/editar:
+ * /estudiantes/editar:
  *   put:
  *     summary: Actualizar un estudiante existente
  *     tags: [Estudiantes]
@@ -173,7 +173,7 @@ router.delete('/eliminar', controladorEstudiantes.EliminarEstudiante);
 
 /**
  * @swagger
- * /api/estudiantes/importar-excel:
+ * /estudiantes/importar-excel:
  *   post:
  *     summary: Importar estudiantes desde archivo Excel
  *     tags: [Estudiantes]

@@ -34,7 +34,7 @@ const Aulas = require('../modelos/Aulas');
 
 /**
  * @swagger
- * /api/aulas/listar:
+ * /aulas/listar:
  *   get:
  *     summary: Obtiene la lista de todas las aulas
  *     tags: [Aulas]
@@ -74,7 +74,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * /api/aulas/guardar:
+ * /aulas/guardar:
  *   post:
  *     summary: Crear una nueva aula
  *     tags: [Aulas]
@@ -197,7 +197,7 @@ rutas.put('/editar', [
 
 /**
  * @swagger
- * /api/aulas/eliminar:
+ * /aulas/eliminar:
  *   delete:
  *     summary: Eliminar un aula
  *     tags: [Aulas]
