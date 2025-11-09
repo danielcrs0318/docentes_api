@@ -17,6 +17,8 @@ const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
 const modeloAsistencias = require('./modelos/Asistencia');
 const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
+const modeloProyectos = require('./modelos/Proyectos');
+const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -71,7 +73,7 @@ db.authenticate().then(async (data) => {
   modeloEstudiantes.hasMany(modeloEvaluacionesEstudiantes, { foreignKey: 'estudianteId', as: 'evaluacionesEstudiantiles' });
   modeloEvaluacionesEstudiantes.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
 
-
+  // Asistencias - Relaciones
   modeloAsistencias.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
   modeloEstudiantes.hasMany(modeloAsistencias, { foreignKey: 'estudianteId', as: 'asistencias' });
 
@@ -82,13 +84,31 @@ db.authenticate().then(async (data) => {
   // periodos - Asistencias
   modeloPeriodos.hasMany(modeloAsistencias, { foreignKey: 'periodoId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloPeriodos, { foreignKey: 'periodoId', as: 'periodo' });
+  
   // parciales - Asistencias
   modeloParciales.hasMany(modeloAsistencias, { foreignKey: 'parcialId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
 
-  // Docentes - Clases (definimos asociación; si la columna docenteId no existe en la DB
-  // podría requerir una migración o sincronización con alter)
+  // Proyectos - Estudiantes (CORREGIDO: relación muchos a muchos)
+  modeloProyectos.belongsToMany(modeloEstudiantes, {
+    through: ProyectoEstudiantes,
+    foreignKey: 'proyectoId',
+    otherKey: 'estudianteId',
+    as: 'estudiantes'
+  });
 
+  modeloEstudiantes.belongsToMany(modeloProyectos, {
+    through: ProyectoEstudiantes,
+    foreignKey: 'estudianteId',
+    otherKey: 'proyectoId',
+    as: 'proyectos'
+  });
+
+  // Proyectos - Clases
+  modeloClases.hasMany(modeloProyectos, { foreignKey: 'claseId', as: 'proyectos' });
+  modeloProyectos.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // Docentes - Clases (definimos asociación)
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
@@ -96,6 +116,7 @@ db.authenticate().then(async (data) => {
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 
+  // Sincronizar modelos con la base de datos (orden respetando FKs)
   await modeloPeriodos.sync({ alter: true }).then((data) => {
     console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
@@ -139,6 +160,20 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  // Sincronizar Proyectos antes de ProyectoEstudiantes (FK dependency)
+  await modeloProyectos.sync({ alter: true }).then((data) => {
+    console.log("Tabla Proyectos sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  // Sincronizar ProyectoEstudiantes (tabla intermedia)
+  await ProyectoEstudiantes.sync({ alter: true }).then((data) => {
+    console.log("Tabla ProyectoEstudiantes sincronizada (alter:true) - Relación muchos a muchos creada");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   await modeloEstudiantesClases.sync({ alter: true }).then((data) => {
     console.log("Tabla EstudiantesClases RECREADA (alter:true) - ÍNDICES CORREGIDOS");
   }).catch((err) => {
@@ -174,10 +209,10 @@ db.authenticate().then(async (data) => {
   // Montar rutas e iniciar servidor ahora que los modelos y asociaciones están listos
   mountServerAndRoutes();
 
-
 }).catch((err) => {
   console.log('Error de conexion: ' + err);
 });
+
 // Las rutas y servidor se montan después de establecer conexión y sincronizar modelos
 function mountServerAndRoutes() {
   // rutas
@@ -188,6 +223,7 @@ function mountServerAndRoutes() {
   app.use('/api/secciones', require('./rutas/rutaSecciones'));
   app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
   app.use('/api/docentes', require('./rutas/rutaDocentes'));
+  app.use('/api/proyectos', require('./rutas/rutaProyectos'));
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
@@ -206,9 +242,6 @@ function mountServerAndRoutes() {
   app.listen(app.get('port'), () => {
     console.log('Servidor corriendo en el puerto ' + app.get('port'));
   });
-};
+}
 
-// Intentar montar servidor tras la conexión a la DB: si la conexión ya sucedió,
-// db.authenticate() habría llamado el .then y sincronizado; sin embargo, para
-// asegurar idempotencia también intentamos montar aquí si aún no se ha montado.
-// Llamamos a mountServerAndRoutes al final del flujo de sincronización anterior.
+module.exports = app;
