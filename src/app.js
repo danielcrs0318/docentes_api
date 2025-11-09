@@ -227,6 +227,7 @@ function mountServerAndRoutes() {
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
+  app.use('/api/analisis', require('./rutas/rutaAnalisis'));
 
   // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
