@@ -166,7 +166,7 @@ exports.AsignarAleatorio = async (req, res) => {
     res.json({ message: 'Asignación aleatoria completada', asignados });
   } catch (error) {
     console.error('Error asignar aleatorio:', error);
-    res.status(500).json({ error: 'Error en asignación aleatoria' });
+    res.status(500).json({ error: 'Error en asignación aleatoria', detalle: error.message });
   }
 };
 
