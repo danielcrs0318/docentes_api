@@ -191,29 +191,26 @@ rutas.post('/guardar',
  *       500:
  *         description: Error del servidor
  */
-rutas.put('/editar',
+rutas.put('/editar', [
     query('id').isInt().withMessage('El ID debe ser un número entero'),
     body('nombre')
-    .notEmpty()
-    .isLength({ min: 6, max: 15 })
-    .withMessage('El nombre debe tener entre 6 y 15 caracteres'),
+      .notEmpty()
+      .isLength({ min: 6, max: 15 })
+      .withMessage('El nombre debe tener entre 6 y 15 caracteres'),
+    body('fechaInicio')
+      .notEmpty()
+      .withMessage('La fecha de inicio es obligatoria')
+      .isISO8601()
+      .withMessage('La fecha de inicio debe tener formato YYYY-MM-DD')
+      .custom((value) => {
+        const fechaMinima = new Date('2025-01-01');
+        const fechaIngresada = new Date(value);
 
-  body('fechaInicio')
-    .notEmpty()
-    .withMessage('La fecha de inicio es obligatoria')
-    .isISO8601()
-    .withMessage('La fecha de inicio debe tener formato YYYY-MM-DD')
-    .custom((value) => {
-      // Fecha mínima permitida (puedes cambiarla)
-      const fechaMinima = new Date('2025-01-01');
-      const fechaIngresada = new Date(value);
-
-      if (fechaIngresada < fechaMinima) {
-        throw new Error('La fecha de inicio no puede ser anterior al 1 de enero de 2025');
-      }
-
-      return true;
-    }),
+        if (fechaIngresada < fechaMinima) {
+          throw new Error('La fecha de inicio no puede ser anterior al 1 de enero de 2025');
+        }
+        return true;
+      }),
     body('fechaFin')
       .notEmpty()
       .withMessage('La fecha de fin es obligatoria')
@@ -226,11 +223,15 @@ rutas.put('/editar',
         if (fechaFin <= fechaInicio) {
           throw new Error('La fecha de fin debe ser posterior a la fecha de inicio');
         }
-
         return true;
       }),
-
-  controladorParciales.CrearParcial
+    body('periodoId')
+      .notEmpty()
+      .withMessage('El ID del periodo es obligatorio')
+      .isInt()
+      .withMessage('El ID del periodo debe ser un número entero')
+  ],
+  controladorParciales.EditarParcial
 );
 
 /**
