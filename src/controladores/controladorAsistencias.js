@@ -250,27 +250,32 @@ exports.eliminarAsistencia = async (req, res) => {
     }
 };
 
-// Filtrar asistencias por rango de fechas
+/// Filtrar asistencias por rango de fechas
 exports.filtrarPorFecha = async (req, res) => {
     try {
         const { fechaInicio, fechaFin } = req.query;
         
+        // Convertir a objetos Date y ajustar para incluir todo el día
+        const inicio = new Date(fechaInicio);
+        const fin = new Date(fechaFin);
+        fin.setHours(23, 59, 59, 999); // Incluir hasta el final del día
+
         const asistencias = await Asistencia.findAll({
             where: {
                 fecha: {
-                    [Op.between]: [fechaInicio, fechaFin]
+                    [Op.between]: [inicio, fin]
                 }
             },
             include: [
                 {
-                        model: Estudiante,
-                        as: 'estudiante',
-                        attributes: ['nombre', 'apellido', 'correo']
+                    model: Estudiante,
+                    as: 'estudiante',
+                    attributes: ['nombre', 'correo']
                 },
                 {
-                        model: Clase,
-                        as: 'clase',
-                        attributes: ['nombre']
+                    model: Clase,
+                    as: 'clase',
+                    attributes: ['nombre']
                 }
             ]
         });
@@ -300,7 +305,7 @@ exports.filtrarPorEstadoYClase = async (req, res) => {
                 {
                         model: Estudiante,
                         as: 'estudiante',
-                        attributes: ['nombre', 'apellido', 'correo']
+                        attributes: ['nombre', 'correo']
                 },
                 {
                         model: Clase,
