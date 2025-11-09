@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const Usuarios = require('../modelos/Usuarios');
 const UsuarioImagen = require('../modelos/UsuarioImagenes');
+const Docente = require('../modelos/Docentes');
 const argon2 = require('argon2');
 const { Op } = require('sequelize');
 const { enviarCorreo } = require('../configuraciones/correo');
@@ -32,21 +33,42 @@ exports.buscarPorId = async (req, res) => {
 }
 
 exports.insertar = async (req, res) => {
+    // Validar campos enviados
     const errores = validationResult(req);
     if (!errores.isEmpty()) {
         return res.status(400).json({ errores: errores.array() });
     }
+
     try {
-        const hash = await argon2.hash(req.body.contrasena);
+        const { docenteId, contrasena } = req.body;
+
+        // ✅ Validar si el docente existe antes de crear el usuario
+        const docenteExiste = await Docente.findByPk(docenteId);
+        if (!docenteExiste) {
+            return res.status(404).json({
+                error: `No existe ningún docente con el ID ${docenteId}`
+            });
+        }
+
+        // Encriptar contraseña
+        const hash = await argon2.hash(contrasena);
+
+        // Crear el nuevo usuario
         const nuevo = await Usuarios.create({
             ...req.body,
             contrasena: hash
         });
-        return res.status(201).json(nuevo);
+
+        return res.status(201).json({
+            mensaje: 'Usuario creado correctamente',
+            usuario: nuevo
+        });
+
     } catch (error) {
+        console.error(error);
         return res.status(500).json({ error: 'Error al insertar usuario' });
     }
-}
+};
 
 exports.actualizar = async (req, res) => {
     const errores = validationResult(req);
@@ -137,13 +159,13 @@ exports.iniciarSesion = async (req, res) => {
 
         if (!esValida) {
             usuario.intentos = (usuario.intentos || 0) + 1;
-            
+
             if (usuario.intentos >= 3) {
                 usuario.estado = 'BL';
                 await usuario.save();
                 return res.status(403).json({ error: 'Usuario bloqueado por múltiples intentos fallidos' });
             }
-            
+
             await usuario.save();
             return res.status(400).json({ error: 'Contraseña incorrecta' });
         }
@@ -163,7 +185,7 @@ exports.iniciarSesion = async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: 'Error en el servidor' , detalles: error.message });
+        return res.status(500).json({ error: 'Error en el servidor', detalles: error.message });
     }
 };
 
@@ -211,7 +233,7 @@ exports.solicitarRestablecimiento = async (req, res) => {
         res.status(200).json({ mensaje: 'PIN enviado al correo' });
     } catch (error) {
         console.error('Error detallado:', error);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Error en el servidor',
             detalles: error.message,
             stack: error.stack
@@ -255,8 +277,8 @@ exports.validarPin = async (req, res) => {
         }
 
         // Generar token especial para restablecimiento
-        const token = getToken({ 
-            id: usuario.id, 
+        const token = getToken({
+            id: usuario.id,
             pin: true
         }, {
             expiresIn: '15m' // El token expira en 15 minutos, igual que el PIN
@@ -288,7 +310,7 @@ exports.restablecerContrasena = async (req, res) => {
         usuario.pinExpiracion = null;
         usuario.intentos = 0;
         usuario.estado = 'AC';
-        
+
         await usuario.save();
 
         res.status(200).json({ mensaje: 'Contraseña actualizada exitosamente' });
@@ -361,9 +383,9 @@ exports.guardarImagenUsuario = async (req, res) => {
 
     } catch (error) {
         console.error('Error al guardar imagen:', error);
-        res.status(500).json({ 
-            error: 'Error al guardar la imagen', 
-            detalles: error.message 
+        res.status(500).json({
+            error: 'Error al guardar la imagen',
+            detalles: error.message
         });
     }
 };
