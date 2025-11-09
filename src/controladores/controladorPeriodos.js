@@ -1,6 +1,7 @@
 const Periodos = require('../modelos/Periodos');
 const { validationResult } = require('express-validator');
 const Parciales = require('../modelos/Parciales');
+const { Op } = require('sequelize');
 
 // Helper: generar nombre del periodo según fechaInicio
 const generarNombrePeriodo = (fechaInicio) => {
@@ -190,5 +191,143 @@ exports.EliminarPeriodo = async (req, res) => {
   } catch (error) {
     console.error("Error al eliminar el periodo:", error);
     res.status(500).json({ msj: "Error al eliminar el periodo", error: error.message });
+  }
+};
+
+// FILTRO 1: Filtrar periodos por nombre (búsqueda parcial)
+exports.filtrarPeriodosPorNombre = async (req, res) => {
+  try {
+    const errores = validationResult(req);
+
+    if (!errores.isEmpty()) {
+      const data = errores.array().map(i => ({
+        atributo: i.path,
+        msg: i.msg
+      }));
+      return res.status(400).json({ msj: 'Errores de validación', data });
+    }
+
+    const { nombre } = req.query;
+
+    const periodos = await Periodos.findAll({
+      where: {
+        nombre: {
+          [Op.like]: `%${nombre.trim()}%`
+        }
+      },
+      include: [{
+        model: Parciales,
+        as: 'parciales',
+        attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin']
+      }],
+      order: [['nombre', 'ASC']],
+      attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin']
+    });
+
+    if (periodos.length === 0) {
+      return res.status(200).json({ 
+        msj: 'No se encontraron periodos con ese nombre', 
+        data: [],
+        count: 0
+      });
+    }
+
+    res.status(200).json({
+      msj: `Se encontraron ${periodos.length} periodo(s)`,
+      data: periodos,
+      count: periodos.length
+    });
+  } catch (error) {
+    console.error('Error al filtrar periodos por nombre:', error);
+    res.status(500).json({ error: 'Error al filtrar periodos por nombre' });
+  }
+};
+
+// FILTRO 2: Filtrar periodos por rango de fechas
+exports.filtrarPeriodosPorFecha = async (req, res) => {
+  try {
+    const errores = validationResult(req);
+
+    if (!errores.isEmpty()) {
+      const data = errores.array().map(i => ({
+        atributo: i.path,
+        msg: i.msg
+      }));
+      return res.status(400).json({ msj: 'Errores de validación', data });
+    }
+
+    const { fechaInicio, fechaFin } = req.query;
+
+    // Convertir a objetos Date
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    
+    // Validar que las fechas sean válidas
+    if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+      return res.status(400).json({ 
+        msj: 'Fechas inválidas', 
+        data: [] 
+      });
+    }
+
+    // Validar que fechaInicio no sea mayor que fechaFin
+    if (inicio > fin) {
+      return res.status(400).json({ 
+        msj: 'La fecha de inicio no puede ser mayor que la fecha fin', 
+        data: [] 
+      });
+    }
+
+    const periodos = await Periodos.findAll({
+      where: {
+        [Op.or]: [
+          // Periodos que comienzan dentro del rango
+          {
+            fechaInicio: {
+              [Op.between]: [inicio, fin]
+            }
+          },
+          // Periodos que terminan dentro del rango
+          {
+            fechaFin: {
+              [Op.between]: [inicio, fin]
+            }
+          },
+          // Periodos que contienen el rango completo
+          {
+            fechaInicio: {
+              [Op.lte]: inicio
+            },
+            fechaFin: {
+              [Op.gte]: fin
+            }
+          }
+        ]
+      },
+      include: [{
+        model: Parciales,
+        as: 'parciales',
+        attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin']
+      }],
+      order: [['fechaInicio', 'ASC']],
+      attributes: ['id', 'nombre', 'fechaInicio', 'fechaFin']
+    });
+
+    if (periodos.length === 0) {
+      return res.status(200).json({ 
+        msj: 'No se encontraron periodos en el rango de fechas especificado', 
+        data: [],
+        count: 0
+      });
+    }
+
+    res.status(200).json({
+      msj: `Se encontraron ${periodos.length} periodo(s) en el rango especificado`,
+      data: periodos,
+      count: periodos.length
+    });
+  } catch (error) {
+    console.error('Error al filtrar periodos por fecha:', error);
+    res.status(500).json({ error: 'Error al filtrar periodos por fecha' });
   }
 };
