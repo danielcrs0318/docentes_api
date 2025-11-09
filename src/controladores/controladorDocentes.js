@@ -1,6 +1,7 @@
 const { validationResult } = require('express-validator');
 const Docentes = require('../modelos/Docentes');
 const Clases = require('../modelos/Clases');
+const { Op } = require('sequelize');
 
 // Listar todos los docentes
 const ListarDocentes = async (req, res) => {
@@ -9,7 +10,7 @@ const ListarDocentes = async (req, res) => {
             include: [
                 {
                     model: Clases,
-                    as: 'clases',
+                    as: 'clasesAsignadas',
                     attributes: ['id', 'codigo', 'nombre']
                 }
             ]
@@ -47,7 +48,7 @@ const ActualizarDocente = async (req, res) => {
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
     try {
-        const { id } = req.params;
+        const { id } = req.query;
         const { nombre, correo, especialidad, estado } = req.body;
 
         const docente = await Docentes.findByPk(id);
@@ -75,7 +76,7 @@ const ActualizarDocente = async (req, res) => {
 // Eliminar docente
 const EliminarDocente = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { id } = req.query;
         const docente = await Docentes.findByPk(id);
         if (!docente) return res.status(404).json({ error: 'Docente no encontrado' });
 
@@ -87,9 +88,64 @@ const EliminarDocente = async (req, res) => {
     }
 };
 
+// FILTRO 1: Filtrar docentes por nombre (búsqueda parcial)
+const filtrarDocentesPorNombre = async (req, res) => {
+    try {
+        const errores = validationResult(req);
+
+        if (!errores.isEmpty()) {
+            const data = errores.array().map(i => ({
+                atributo: i.path,
+                msg: i.msg
+            }));
+            return res.status(400).json({ msj: 'Errores de validación', data });
+        }
+
+        const { nombre } = req.query;
+
+        const docentes = await Docentes.findAll({
+            where: {
+                nombre: {
+                    [Op.like]: `%${nombre.trim()}%`
+                }
+            },
+            include: [
+                {
+                    model: Clases,
+                    as: 'clases', // Cambiado para coincidir con el alias definido
+                    attributes: ['id', 'codigo', 'nombre', 'creditos']
+                }
+            ],
+            order: [
+                ['nombre', 'ASC']
+            ]
+        });
+
+        if (docentes.length === 0) {
+            return res.status(200).json({ 
+                msj: 'No se encontraron docentes con ese nombre', 
+                data: [],
+                count: 0
+            });
+        }
+
+        res.status(200).json({
+            msj: `Se encontraron ${docentes.length} docente(s)`,
+            data: docentes,
+            count: docentes.length
+        });
+    } catch (error) {
+        console.error('Error al filtrar docentes por nombre:', error);
+        res.status(500).json({ error: 'Error al filtrar docentes por nombre' });
+    }
+};
+
+
+// Exportar todas las funciones
 module.exports = {
     ListarDocentes,
     CrearDocente,
     ActualizarDocente,
-    EliminarDocente
+    EliminarDocente,
+    filtrarDocentesPorNombre,
 };

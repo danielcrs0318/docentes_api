@@ -229,4 +229,67 @@ rutas.delete('/eliminar', [
     })
 ], controladorAulas.EliminarAula);
 
+/**
+ * @swagger
+ * /aulas/filtrar-nombre:
+ *   get:
+ *     summary: Filtrar aulas por nombre (búsqueda parcial)
+ *     tags: [Aulas]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Nombre o parte del nombre del aula a buscar
+ *     responses:
+ *       200:
+ *         description: Lista de aulas que coinciden con el nombre proporcionado
+ *       400:
+ *         description: Parámetro "nombre" no proporcionado o inválido
+ *       500:
+ *         description: Error del servidor
+ */
+
+// Filtrar aulas por nombre (búsqueda parcial)
+rutas.get('/filtrar-nombre',
+    query('nombre').notEmpty().withMessage('El parámetro "nombre" es requerido'),
+    controladorAulas.filtrarPorNombre);
+
+/**
+ * @swagger
+ * /aulas/filtrar-capacidad:
+ *   get:
+ *     summary: Filtrar aulas por capacidad (rango de capacidad)
+ *     tags: [Aulas]
+ *     parameters:
+ *       - in: query
+ *         name: capacidadMin
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Valor mínimo de capacidad
+ *       - in: query
+ *         name: capacidadMax
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Valor máximo de capacidad
+ *     responses:
+ *       200:
+ *         description: Lista de aulas que coinciden con el rango de capacidad proporcionado
+ *       400:
+ *         description: Parámetros "min" o "max" no proporcionados o inválidos
+ *       500:
+ *         description: Error del servidor
+ */
+
+// Filtrar aulas por capacidad (rango)
+rutas.get('/filtrar-capacidad',
+    query('min').optional().isInt({ min: 1 }).withMessage('El valor mínimo debe ser un entero mayor que 0'),
+    query('max').optional().isInt({ min: 1 }).withMessage('El valor máximo debe ser un entero mayor que 0'),
+    controladorAulas.filtrarPorCapacidad);
+
 module.exports = rutas;

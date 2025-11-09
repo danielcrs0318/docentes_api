@@ -2,7 +2,31 @@ const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorPeriodos = require('../controladores/controladorPeriodos');
 const rutas = Router();
-const Periodos = require('../modelos/Periodos');
+
+// Validaciones para filtrar por nombre
+const validarFiltrarPorNombre = [
+  query('nombre')
+    .notEmpty()
+    .withMessage('El parámetro nombre es obligatorio')
+    .isLength({ min: 2 })
+    .withMessage('El nombre debe tener al menos 2 caracteres')
+    .trim()
+    .escape()
+];
+
+// Validaciones para filtrar por fecha
+const validarFiltrarPorFecha = [
+  query('fechaInicio')
+    .notEmpty()
+    .withMessage('El parámetro fechaInicio es obligatorio')
+    .isDate()
+    .withMessage('La fecha de inicio debe tener un formato válido (YYYY-MM-DD)'),
+  query('fechaFin')
+    .notEmpty()
+    .withMessage('El parámetro fechaFin es obligatorio')
+    .isDate()
+    .withMessage('La fecha fin debe tener un formato válido (YYYY-MM-DD)')
+];
 
 /**
  * @swagger
@@ -249,5 +273,144 @@ rutas.put('/editar', [
 rutas.delete('/eliminar', [
   query('id').isInt().withMessage('El ID debe ser un número entero')
 ], controladorPeriodos.EliminarPeriodo);
+
+/**
+ * @swagger
+ * /periodos/filtrar-nombre:
+ *   get:
+ *     summary: Filtrar periodos por nombre (búsqueda parcial)
+ *     description: Busca periodos que coincidan parcialmente con el nombre proporcionado
+ *     tags: [Periodos]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "2024"
+ *         description: Nombre o parte del nombre del periodo a buscar
+ *     responses:
+ *       200:
+ *         description: Lista de periodos que coinciden con el criterio de búsqueda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 2 periodo(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nombre:
+ *                         type: string
+ *                         example: "Periodo 2024-1"
+ *                       fechaInicio:
+ *                         type: string
+ *                         format: date
+ *                         example: "2024-01-15"
+ *                       fechaFin:
+ *                         type: string
+ *                         format: date
+ *                         example: "2024-06-15"
+ *                       parciales:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             nombre:
+ *                               type: string
+ *                             fechaInicio:
+ *                               type: string
+ *                               format: date
+ *                             fechaFin:
+ *                               type: string
+ *                               format: date
+ *                 count:
+ *                   type: integer
+ *                   example: 2
+ *       400:
+ *         description: Parámetro nombre no proporcionado o inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+/**
+ * @swagger
+ * /periodos/filtrar-fecha:
+ *   get:
+ *     summary: Filtrar periodos por rango de fechas
+ *     description: Busca periodos que coincidan con el rango de fechas especificado
+ *     tags: [Periodos]
+ *     parameters:
+ *       - in: query
+ *         name: fechaInicio
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-01-01"
+ *         description: Fecha de inicio del rango (YYYY-MM-DD)
+ *       - in: query
+ *         name: fechaFin
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2024-12-31"
+ *         description: Fecha fin del rango (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Lista de periodos que coinciden con el rango de fechas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 3 periodo(s) en el rango especificado"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nombre:
+ *                         type: string
+ *                         example: "Periodo 2024-1"
+ *                       fechaInicio:
+ *                         type: string
+ *                         format: date
+ *                         example: "2024-01-15"
+ *                       fechaFin:
+ *                         type: string
+ *                         format: date
+ *                         example: "2024-06-15"
+ *                       parciales:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *       400:
+ *         description: Parámetros de fecha no proporcionados o inválidos
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+rutas.get('/filtrar-nombre', validarFiltrarPorNombre, controladorPeriodos.filtrarPeriodosPorNombre);
+rutas.get('/filtrar-fecha', validarFiltrarPorFecha, controladorPeriodos.filtrarPeriodosPorFecha);
 
 module.exports = rutas;

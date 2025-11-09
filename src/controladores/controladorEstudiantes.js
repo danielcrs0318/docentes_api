@@ -8,6 +8,7 @@ const Aulas = require('../modelos/Aulas');
 const { validationResult } = require('express-validator');
 const XLSX = require('xlsx');
 const fs = require('fs');
+const {Op} = require('sequelize');
 
 // Helper: generar nombre del periodo según fechaInicio (IP / IIP / IIIP + yy)
 const generarNombrePeriodo = (fechaInicio) => {
@@ -541,5 +542,178 @@ exports.CargarDesdeExcel = async (req, res) => {
         }
         console.error('Error al procesar archivo Excel:', error);
         res.status(500).json({ error: 'Error al procesar el archivo Excel', detalle: error.message });
+    }
+};
+
+// FILTRO 1: Filtrar por nombre y estado
+exports.filtrarPorNombreYEstado = async (req, res) => {
+    try {
+        const { nombre, estado } = req.query;
+        const whereClause = {};
+
+        if (nombre) {
+            whereClause.nombre = {
+                [Op.like]: `%${nombre.trim()}%`
+            };
+        }
+
+        if (estado) {
+            whereClause.estado = estado.toUpperCase();
+        }
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['nombre', 'ASC']]
+        });
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantes.length} estudiante(s)`,
+            data: estudiantes,
+            count: estudiantes.length
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// FILTRO 2: Filtrar por correo
+exports.filtrarPorCorreo = async (req, res) => {
+    try {
+        const { correo, tipoBusqueda = 'exacta' } = req.query;
+        
+        const whereClause = {
+            correo: tipoBusqueda === 'exacta' ? correo : {
+                [Op.like]: `%${correo}%`
+            }
+        };
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['correo', 'ASC']]
+        });
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantes.length} estudiante(s)`,
+            data: estudiantes,
+            count: estudiantes.length
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes por correo:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// FILTRO 3: Filtrar con estadísticas
+exports.filtrarConEstadisticas = async (req, res) => {
+    try {
+        const { estado, minimoClases } = req.query;
+        const whereClause = {};
+
+        if (estado) {
+            whereClause.estado = estado.toUpperCase();
+        }
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['nombre', 'ASC']]
+        });
+
+        // Filtrar por número mínimo de clases si se especifica
+        const estudiantesFiltrados = minimoClases ? 
+            estudiantes.filter(est => est.inscripciones.length >= parseInt(minimoClases)) :
+            estudiantes;
+
+        // Calcular estadísticas generales
+        const estadisticas = {
+            activos: estudiantes.filter(e => e.estado === 'ACTIVO').length,
+            inactivos: estudiantes.filter(e => e.estado === 'INACTIVO').length,
+            retirados: estudiantes.filter(e => e.estado === 'RETIRADO').length
+        };
+
+        // Agregar estadísticas individuales
+        const dataConEstadisticas = estudiantesFiltrados.map(est => ({
+            ...est.toJSON(),
+            estadisticas: {
+                totalClases: est.inscripciones.length,
+                totalInscripciones: est.inscripciones.length
+            }
+        }));
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantesFiltrados.length} estudiante(s)`,
+            data: dataConEstadisticas,
+            count: estudiantesFiltrados.length,
+            estadisticas
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes con estadísticas:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };
