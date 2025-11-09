@@ -1,5 +1,6 @@
 const Parciales = require('../modelos/Parciales');
 const { validationResult } = require('express-validator');
+const { Op } = require('sequelize');
 
 // Controlador para obtener todos los parciales
 exports.ListarParciales = async (req, res) => {
@@ -72,5 +73,47 @@ exports.EliminarParcial = async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar el parcial:', error);
     res.status(500).json({ error: 'Error al eliminar el parcial' });
+  }
+};
+
+// FILTRO 1: Filtrar parciales por nombre (búsqueda parcial)
+exports.filtrarParcialesPorNombre = async (req, res) => {
+  try {
+    const errores = validationResult(req);
+
+    // Validar si hay errores en los campos
+    if (!errores.isEmpty()) {
+      const data = errores.array().map(i => ({
+        atributo: i.path,
+        msg: i.msg
+      }));
+      return res.status(400).json({ msj: 'Errores de validación', data });
+    }
+
+    const { nombre } = req.query;
+
+    const parciales = await Parciales.findAll({
+      where: {
+        nombre: {
+          [Op.like]: `%${nombre.trim()}%`
+        }
+      },
+      order: [['nombre', 'ASC']]
+    });
+
+    if (parciales.length === 0) {
+      return res.status(200).json({ 
+        msj: 'No se encontraron parciales con ese nombre', 
+        data: [] 
+      });
+    }
+
+    res.status(200).json({
+      msj: `Se encontraron ${parciales.length} parcial(es)`,
+      data: parciales
+    });
+  } catch (error) {
+    console.error('Error al filtrar parciales por nombre:', error);
+    res.status(500).json({ error: 'Error al filtrar parciales por nombre' });
   }
 };

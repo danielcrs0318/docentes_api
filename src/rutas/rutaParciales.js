@@ -2,7 +2,15 @@ const {Router} = require('express');
 const { body, query } = require('express-validator');
 const controladorParciales = require('../controladores/controladorParciales');
 const rutas = Router();
-const Parciales = require('../modelos/Parciales');
+
+// Validaciones para filtrar por nombre
+const validarFiltrarPorNombre = [
+    query('nombre')
+        .notEmpty()
+        .withMessage('El parámetro nombre es obligatorio')
+        .isLength({ min: 2 })
+        .withMessage('El nombre debe tener al menos 2 caracteres')
+];
 
 /**
  * @swagger
@@ -260,5 +268,81 @@ rutas.delete('/eliminar',
     query('id').isInt().withMessage('El ID debe ser un número entero'),
     controladorParciales.EliminarParcial
 );
+
+/**
+ * @swagger
+ * /parciales/filtrar-nombre:
+ *   get:
+ *     summary: Filtrar parciales por nombre (búsqueda parcial)
+ *     description: Busca parciales que coincidan parcialmente con el nombre proporcionado
+ *     tags: [Parciales]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "Primer"
+ *         description: Nombre o parte del nombre del parcial a buscar
+ *     responses:
+ *       200:
+ *         description: Lista de parciales que coinciden con el criterio de búsqueda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 2 parcial(es)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nombre:
+ *                         type: string
+ *                         example: "Primer Parcial"
+ *                       estado:
+ *                         type: string
+ *                         example: "ACTIVO"
+ *                       fechaInicio:
+ *                         type: string
+ *                         format: date-time
+ *                       fechaFin:
+ *                         type: string
+ *                         format: date-time
+ *       400:
+ *         description: Parámetro nombre no proporcionado o inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Errores de validación"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       atributo:
+ *                         type: string
+ *                         example: "nombre"
+ *                       msg:
+ *                         type: string
+ *                         example: "El parámetro nombre es obligatorio"
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+
+// Filtrar parciales por nombre (búsqueda parcial)
+rutas.get('/filtrar-nombre',  validarFiltrarPorNombre, controladorParciales.filtrarParcialesPorNombre);
+
 
 module.exports = rutas;
