@@ -1,7 +1,49 @@
 const { Router } = require('express');
-const { body, query } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const rutas = Router();
 const controladorDocentes = require('../controladores/controladorDocentes');
+
+// Middleware de validación personalizado
+const validarFiltros = (validaciones) => {
+    return async (req, res, next) => {
+        await Promise.all(validaciones.map(validacion => validacion.run(req)));
+        
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                msj: 'Errores de validación',
+                data: errors.array().map(i => ({
+                    atributo: i.path,
+                    msg: i.msg
+                }))
+            });
+        }
+        next();
+    };
+};
+
+// Validaciones para filtrar por nombre
+const validacionesFiltrarPorNombre = [
+    query('nombre')
+        .notEmpty()
+        .withMessage('El parámetro nombre es obligatorio')
+        .isLength({ min: 2, max: 50 })
+        .withMessage('El nombre debe tener entre 2 y 50 caracteres')
+        .trim()
+        .escape()
+];
+
+// Validaciones para filtrar por especialidad
+const validacionesFiltrarPorEspecialidad = [
+    query('especialidad')
+        .notEmpty()
+        .withMessage('El parámetro especialidad es obligatorio')
+        .isLength({ min: 2, max: 100 })
+        .withMessage('La especialidad debe tener entre 2 y 100 caracteres')
+        .trim()
+        .escape()
+];
+
 
 /**
  * @swagger
@@ -126,5 +168,82 @@ rutas.delete('/Eliminar', [
  *       404:
  *         description: Docente no encontrado
  */
+
+/**
+ * @swagger
+ * /docentes/filtrar-nombre:
+ *   get:
+ *     summary: Filtrar docentes por nombre o apellido (búsqueda parcial)
+ *     description: Busca docentes que coincidan parcialmente con el nombre o apellido proporcionado
+ *     tags: [Docentes]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "María"
+ *         description: Nombre o apellido del docente a buscar
+ *     responses:
+ *       200:
+ *         description: Lista de docentes que coinciden con el criterio de búsqueda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 2 docente(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nombre:
+ *                         type: string
+ *                         example: "María García"
+ *                       correo:
+ *                         type: string
+ *                         example: "maria.garcia@universidad.edu"
+ *                       especialidad:
+ *                         type: string
+ *                         example: "Matemáticas"
+ *                       estado:
+ *                         type: string
+ *                         example: "ACTIVO"
+ *                       clases:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             codigo:
+ *                               type: string
+ *                             nombre:
+ *                               type: string
+ *                             creditos:
+ *                               type: integer
+ *                             secciones:
+ *                               type: array
+ *                 count:
+ *                   type: integer
+ *                   example: 2
+ *       400:
+ *         description: Parámetro nombre no proporcionado o inválido
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+
+rutas.get('/filtrar-nombre', 
+    validarFiltros(validacionesFiltrarPorNombre), 
+    controladorDocentes.filtrarDocentesPorNombre
+);
+
 
 module.exports = rutas;
