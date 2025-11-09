@@ -28,7 +28,7 @@ const Clases = db.define(
         },
         creditos: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true,
             validate: {
                 isIn: [[3, 4]] // Solo 3 o 4 créditos
             }
