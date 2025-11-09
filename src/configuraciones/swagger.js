@@ -1,6 +1,9 @@
 const swaggerJsdoc = require('swagger-jsdoc');
 const path = require('path');
 
+// Usa el puerto de entorno o 3001 por defecto
+const PORT = process.env.PORT || 3001;
+
 const options = {
     definition: {
         openapi: '3.0.0',
@@ -14,7 +17,7 @@ const options = {
         },
         servers: [
             {
-                url: 'http://localhost:' + process.env.PORT + '/api', // URL del servidor
+                url: `http://localhost:${PORT}/api`,
                 description: 'Servidor local',
             },
         ],
@@ -26,7 +29,6 @@ const options = {
                     bearerFormat: 'JWT'
                 }
             },
-
         },
         security: [
             {
@@ -34,7 +36,7 @@ const options = {
             }
         ],
     },
-    apis: [`${path.join(__dirname, "../rutas/**/*.js")}`],
+    apis: [path.join(__dirname, '../rutas/*.js')],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

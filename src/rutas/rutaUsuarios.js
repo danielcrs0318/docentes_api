@@ -37,7 +37,7 @@ const { validarToken } = require('../configuraciones/passport');
 
 /**
  * @swagger
- * api/usuarios/iniciar-sesion:
+ * /usuarios/iniciar-sesion:
  *   post:
  *     summary: Inicia sesión de usuario
  *     tags: [Usuarios]
@@ -77,7 +77,7 @@ rutas.post('/iniciar-sesion', [
 
 /**
  * @swagger
- * api/usuarios/solicitar-reset:
+ * /usuarios/solicitar-reset:
  *   post:
  *     summary: Solicita un PIN para restablecer la contraseña
  *     tags: [Usuarios]
@@ -103,7 +103,7 @@ rutas.post('/solicitar-restablecimiento', [
 
 /**
  * @swagger
- * api/usuarios/validar-pin:
+ * /usuarios/validar-pin:
  *   post:
  *     summary: Valida el PIN para restablecer la contraseña
  *     tags: [Usuarios]
@@ -142,7 +142,7 @@ rutas.post('/validar-pin', [
 
 /**
  * @swagger
- * api/usuarios/restablecer-contrasena:
+ * /usuarios/restablecer-contrasena:
  *   post:
  *     summary: Restablece la contraseña usando un token válido
  *     tags: [Usuarios]
@@ -169,8 +169,52 @@ rutas.post('/restablecer-contrasena', [
     body('contrasena').isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres'),
 ], controladorUsuarios.restablecerContrasena);
 
+/**
+ * @swagger
+ * /usuarios/listar:
+ *   get:
+ *     summary: Listar todos los usuarios
+ *     tags: [Usuarios]
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Usuario'
+ *       500:
+ *         description: Error del servidor
+ */
+
 rutas.get('/listar', validarToken, controladorUsuarios.Listar);
 
+
+/**
+ * @swagger
+ * /usuarios/guardar:
+ *   post:
+ *     summary: Guardar un nuevo usuario
+ *     tags: [Usuarios]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Usuario'
+ *     responses:
+ *       201:
+ *         description: Usuario creado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Usuario'
+ *       400:
+ *         description: Datos inválidos en la solicitud
+ *       500:
+ *         description: Error del servidor
+ */
 rutas.post('/guardar', [
     body('login').notEmpty().withMessage('El login es obligatorio'),
     body("login").custom(async (value) => {

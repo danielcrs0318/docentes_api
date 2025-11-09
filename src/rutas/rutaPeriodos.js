@@ -60,7 +60,7 @@ const Periodos = require('../modelos/Periodos');
 // Rutas para Periodos
 /**
  * @swagger
- * api/periodos/listar:
+ * /periodos/listar:
  *   get:
  *     summary: Obtiene la lista de todos los periodos académicos
  *     tags: [Periodos]
@@ -81,7 +81,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * api/periodos/guardar:
+ * /periodos/guardar:
  *   post:
  *     summary: Crea un nuevo periodo académico
  *     tags: [Periodos]
@@ -148,7 +148,7 @@ rutas.post('/guardar', [
 ], controladorPeriodos.CrearPeriodo);
 /**
  * @swagger
- * api/periodos/editar:
+ * /periodos/editar:
  *   put:
  *     summary: Actualiza un periodo académico existente
  *     tags: [Periodos]
@@ -225,7 +225,7 @@ rutas.put('/editar', [
 ], controladorPeriodos.EditarPeriodo);
 /**
  * @swagger
- * api/periodos/eliminar:
+ * /periodos/eliminar:
  *   delete:
  *     summary: Elimina un periodo académico
  *     tags: [Periodos]

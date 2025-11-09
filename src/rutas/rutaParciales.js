@@ -51,7 +51,7 @@ const Parciales = require('../modelos/Parciales');
 
 /**
  * @swagger
- * api/parciales/listar:
+ * /parciales/listar:
  *   get:
  *     summary: Obtiene todos los parciales
  *     tags: [Parciales]
@@ -73,7 +73,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * api/parciales/guardar:
+ * /parciales/guardar:
  *   post:
  *     summary: Crea un nuevo parcial
  *     tags: [Parciales]
@@ -152,7 +152,7 @@ rutas.post('/guardar',
 
 /**
  * @swagger
- * api/parciales/editar:
+ * /parciales/editar:
  *   put:
  *     summary: Actualiza un parcial existente
  *     tags: [Parciales]
@@ -227,7 +227,7 @@ rutas.put('/editar',
 
 /**
  * @swagger
- * api/parciales/eliminar:
+ * /parciales/eliminar:
  *   delete:
  *     summary: Elimina un parcial
  *     tags: [Parciales]

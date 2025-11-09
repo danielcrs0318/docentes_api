@@ -13,7 +13,7 @@ const rutas = Router();
 
 /**
  * @swagger
- * /api/proyectos/listar:
+ * /proyectos/listar:
  *   get:
  *     summary: Lista todos los proyectos con estudiantes asignados
  *     tags: [Proyectos]
@@ -100,7 +100,7 @@ rutas.get('/obtener', [
 
 /**
  * @swagger
- * /api/proyectos/guardar:
+ * /proyectos/guardar:
  *   post:
  *     summary: Crear un nuevo proyecto
  *     tags: [Proyectos]
@@ -173,7 +173,7 @@ rutas.post('/guardar', [
 /* Editar */
 /**
  * @swagger
- * /api/proyectos/editar:
+ * /proyectos/editar:
  *   put:
  *     summary: Actualizar un proyecto existente
  *     tags: [Proyectos]
@@ -213,7 +213,7 @@ rutas.put('/editar', [
 /* Eliminar */
 /**
  * @swagger
- * /api/proyectos/eliminar:
+ * /proyectos/eliminar:
  *   delete:
  *     summary: Eliminar un proyecto
  *     tags: [Proyectos]
@@ -246,7 +246,7 @@ rutas.post('/asignar', [
 /* Asignar aleatorio */
 /**
  * @swagger
- * /api/proyectos/asignar-aleatorio:
+ * /proyectos/asignar-aleatorio:
  *   post:
  *     summary: Asignar aleatoriamente estudiantes a un proyecto
  *     tags: [Proyectos]
@@ -282,7 +282,29 @@ rutas.post('/asignar-aleatorio', [
   body('cantidad').optional().isInt({ min: 1 })
 ], controladorProyectos.AsignarAleatorio);
 
+
 /* Listar por estudiante */
+/**swagger
+ * @swagger
+ * /proyectos/por-estudiante:
+ *   get:
+ *     summary: Listar proyectos por estudiante
+ *     tags: [Proyectos]
+ *     parameters:
+ *       - in: query
+ *         name: estudianteId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del estudiante
+ *     responses:
+ *       200:
+ *         description: Proyectos del estudiante encontrados
+ *       400:
+ *         description: Error en los datos proporcionados
+ *       404:
+ *         description: Estudiante no encontrado
+ */
 rutas.get('/por-estudiante', [
   query('estudianteId').notEmpty().isInt()
 ], controladorProyectos.ListarPorEstudiante);

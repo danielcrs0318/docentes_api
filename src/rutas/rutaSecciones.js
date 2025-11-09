@@ -31,7 +31,7 @@ const Secciones = require('../modelos/Secciones');
 
 /**
  * @swagger
- * api/secciones/listar:
+ * /secciones/listar:
  *   get:
  *     summary: Obtiene la lista de todas las secciones
  *     tags: [Secciones]
@@ -53,7 +53,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * api/secciones/guardar:
+ * /secciones/guardar:
  *   post:
  *     summary: Crea una nueva sección
  *     tags: [Secciones]
@@ -84,7 +84,7 @@ rutas.post('/guardar',
 
 /**
  * @swagger
- * api/secciones/editar:
+ * /secciones/editar:
  *   put:
  *     summary: Actualiza una sección existente
  *     tags: [Secciones]
@@ -124,7 +124,7 @@ rutas.put('/editar',
 
 /**
  * @swagger
- * api/secciones/eliminar:
+ * /secciones/eliminar:
  *   delete:
  *     summary: Elimina una sección
  *     tags: [Secciones]
