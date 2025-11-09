@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorEstudiantes = require('../controladores/controladorEstudiantes');
 const { uploadExcel } = require('../configuraciones/multer');
+const { validarToken } = require('../configuraciones/passport');
 const rutas = Router();
 const Estudiantes = require('../modelos/Estudiantes');
 const Secciones = require('../modelos/Secciones');
@@ -370,6 +371,7 @@ rutas.post('/importar-excel',
         console.log('Body:', req.body);
         next();
     },
+    validarToken,
     uploadExcel.single('excel'),
     (err, req, res, next) => {
         if (err) {

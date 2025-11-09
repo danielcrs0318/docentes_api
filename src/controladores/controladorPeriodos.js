@@ -2,6 +2,23 @@ const Periodos = require('../modelos/Periodos');
 const { validationResult } = require('express-validator');
 const Parciales = require('../modelos/Parciales');
 
+// Helper: generar nombre del periodo según fechaInicio
+const generarNombrePeriodo = (fechaInicio) => {
+  if (!fechaInicio) return null;
+  const fecha = (fechaInicio instanceof Date) ? fechaInicio : new Date(fechaInicio);
+  if (isNaN(fecha.getTime())) return null;
+
+  const mes = fecha.getMonth() + 1; // 1-12
+  let numeroPeriodo = 1;
+  if (mes >= 1 && mes <= 4) numeroPeriodo = 1; // Ene-Abr
+  else if (mes >= 5 && mes <= 8) numeroPeriodo = 2; // May-Ago
+  else if (mes >= 9 && mes <= 12) numeroPeriodo = 3; // Sep-Dic
+
+  const prefijoI = 'I'.repeat(numeroPeriodo);
+  const yy = String(fecha.getFullYear()).slice(-2);
+  return `${prefijoI}P${yy}`;
+};
+
 // Controlador para obtener todos los periodos
 exports.ListarPeriodos = async (req, res) => {
   try {
@@ -62,6 +79,12 @@ exports.CrearPeriodo = async (req, res) => {
 
   try {
     const { parciales, ...datosPeriodo } = req.body;
+
+       // Generar nombre automático si no fue proporcionado
+    if (!datosPeriodo.nombre) {
+      const nombreGenerado = generarNombrePeriodo(datosPeriodo.fechaInicio);
+      if (nombreGenerado) datosPeriodo.nombre = nombreGenerado;
+    }
 
     const periodo = await Periodos.create(datosPeriodo);
 

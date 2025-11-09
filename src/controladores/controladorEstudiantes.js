@@ -3,9 +3,37 @@ const Secciones = require('../modelos/Secciones');
 const Clases = require('../modelos/Clases');
 const EstudiantesClases = require('../modelos/EstudiantesClases');
 const Periodos = require('../modelos/Periodos');
+const Usuarios = require('../modelos/Usuarios');
+const Aulas = require('../modelos/Aulas');
 const { validationResult } = require('express-validator');
 const XLSX = require('xlsx');
 const fs = require('fs');
+
+// Helper: generar nombre del periodo según fechaInicio (IP / IIP / IIIP + yy)
+const generarNombrePeriodo = (fechaInicio) => {
+    if (!fechaInicio) return null;
+    const fecha = (fechaInicio instanceof Date) ? fechaInicio : new Date(fechaInicio);
+    if (isNaN(fecha.getTime())) return null;
+
+    const mes = fecha.getMonth() + 1; // 1-12
+    let numeroPeriodo = 1;
+    if (mes >= 1 && mes <= 4) numeroPeriodo = 1; // Ene-Abr
+    else if (mes >= 5 && mes <= 8) numeroPeriodo = 2; // May-Ago
+    else if (mes >= 9 && mes <= 12) numeroPeriodo = 3; // Sep-Dic
+
+    const prefijoI = 'I'.repeat(numeroPeriodo);
+    const yy = String(fecha.getFullYear()).slice(-2);
+    return `${prefijoI}P${yy}`;
+};
+
+// Helper: generar dias de la semana según créditos
+const generarDiasPorCreditos = (creditos) => {
+    if (!creditos) return [];
+    const c = Number(creditos);
+    if (c === 4) return ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+    if (c === 3) return ["Lunes", "Martes", "Miércoles", "Jueves"];
+    return [];
+};
 
 // Controlador para obtener todos los estudiantes
 exports.ListarEstudiantes = async (req, res) => {
@@ -215,13 +243,43 @@ exports.CargarDesdeExcel = async (req, res) => {
 
             if (!periodo) {
                 // Crear nuevo periodo
+                // Generar nombre basado en fechaInicio
+                const nombreGenerado = generarNombrePeriodo(fechaInicioDate);
                 periodo = await Periodos.create({
-                    nombre: null, // Se agregará posteriormente
+                    nombre: nombreGenerado || null,
                     fechaInicio: fechaInicioDate,
                     fechaFin: fechaFinDate
                 });
                 periodoCreado = true;
             }
+
+            else {
+                // Si el periodo existe pero no tiene nombre, calcularlo y guardarlo
+                if (!periodo.nombre) {
+                    const nombreGenerado = generarNombrePeriodo(periodo.fechaInicio || fechaInicioDate);
+                    if (nombreGenerado) {
+                        periodo.nombre = nombreGenerado;
+                        await periodo.save();
+                    }
+                }
+            }
+        }
+
+        // Leer creditos del body (opcional pero requerido para asignar dias)
+        const creditosBody = req.body && req.body.creditos ? parseInt(req.body.creditos, 10) : null;
+        if (creditosBody && ![3,4].includes(creditosBody)) {
+            return res.status(400).json({ error: 'Los creditos deben ser 3 o 4 cuando se proporcionan' });
+        }
+
+        // Obtener docenteId desde el token (req.usuario.id)
+        let docenteIdFromToken = null;
+        try {
+            if (req.usuario && req.usuario.id) {
+                const usuarioLog = await Usuarios.findByPk(req.usuario.id);
+                if (usuarioLog && usuarioLog.docenteId) docenteIdFromToken = usuarioLog.docenteId;
+            }
+        } catch (err) {
+            console.error('No se pudo obtener usuario desde token:', err.message);
         }
 
         // Buscar o crear la clase
@@ -229,13 +287,28 @@ exports.CargarDesdeExcel = async (req, res) => {
         let claseCreada = false;
         
         if (!clase) {
-            // Crear la nueva clase
+            // Crear la nueva clase con creditos/diaSemana/docenteId si vienen
             clase = await Clases.create({
                 codigo: codigoClase,
                 nombre: nombreClase,
-                diaSemana: [] // Array vacío por defecto
+                creditos: creditosBody || null,
+                diaSemana: generarDiasPorCreditos(creditosBody),
+                docenteId: docenteIdFromToken || null
             });
             claseCreada = true;
+        } else {
+            // Si la clase existe, rellenar campos vacíos con lo provisto
+            let necesitaGuardar = false;
+            if ((!clase.creditos || clase.creditos === null) && creditosBody) {
+                clase.creditos = creditosBody;
+                clase.diaSemana = generarDiasPorCreditos(creditosBody);
+                necesitaGuardar = true;
+            }
+            if ((!clase.docenteId || clase.docenteId === null) && docenteIdFromToken) {
+                clase.docenteId = docenteIdFromToken;
+                necesitaGuardar = true;
+            }
+            if (necesitaGuardar) await clase.save();
         }
 
         // Buscar o crear la sección
@@ -243,6 +316,18 @@ exports.CargarDesdeExcel = async (req, res) => {
         let seccionCreada = false;
         
         if (nombreSeccion) {
+            // Requerir aulaId en el body para crear la sección
+            if (!aulaId) {
+                return res.status(400).json({ error: 'El campo aulaId es obligatorio en el body cuando se crea una sección' });
+            }
+
+            // Verificar que el aula proporcionada exista
+            const aulaIdNum = Number(aulaId);
+            const aulaExistente = await Aulas.findByPk(aulaIdNum);
+            if (!aulaExistente) {
+                return res.status(400).json({ error: `No existe un aula con id ${aulaId}` });
+            }
+
             seccion = await Secciones.findOne({ 
                 where: { 
                     nombre: nombreSeccion,
@@ -251,14 +336,19 @@ exports.CargarDesdeExcel = async (req, res) => {
             });
 
             if (!seccion) {
-                // Crear la nueva sección automáticamente
-                // Si se proporciona aulaId, se usa; sino se crea con null
+                // Crear la nueva sección automáticamente con aulaId provisto
                 seccion = await Secciones.create({
                     nombre: nombreSeccion,
                     claseId: clase.id,
-                    aulaId: aulaId || null
+                    aulaId: aulaIdNum
                 });
                 seccionCreada = true;
+            } else {
+                // Si la sección existe pero no tiene aulaId o es distinto, actualizarlo
+                if (!seccion.aulaId || seccion.aulaId !== aulaIdNum) {
+                    seccion.aulaId = aulaIdNum;
+                    await seccion.save();
+                }
             }
         }
 
