@@ -115,3 +115,144 @@ exports.EliminarClase = async (req, res) => {
         res.status(500).json({ error: 'Error al eliminar clase' });
     }
 };
+
+// FILTRO 1: Filtrar clases por nombre (búsqueda parcial)
+exports.filtrarClasesPorNombre = async (req, res) => {
+    try {
+        const { nombre } = req.query;
+
+        if (!nombre || nombre.trim() === '') {
+            return res.status(400).json({ 
+                error: 'El parámetro "nombre" es requerido y no puede estar vacío' 
+            });
+        }
+
+        const clases = await Clases.findAll({
+            where: {
+                nombre: {
+                    [Op.like]: `%${nombre.trim()}%`
+                }
+            },
+            order: [['nombre', 'ASC']]
+        });
+
+        if (clases.length === 0) {
+            return res.status(200).json({ 
+                message: 'No se encontraron clases con ese nombre', 
+                datos: [] 
+            });
+        }
+
+        res.status(200).json({
+            message: `Se encontraron ${clases.length} clase(s)`,
+            datos: clases
+        });
+    } catch (error) {
+        console.error('Error al filtrar clases por nombre:', error);
+        res.status(500).json({ 
+            error: 'Error al filtrar clases por nombre',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// FILTRO 2: Filtrar clases por día de la semana y créditos
+exports.filtrarClasesPorDiaYCreditos = async (req, res) => {
+    try {
+        const { diaSemana, creditosMin, creditosMax } = req.query;
+
+        // Validar que al menos un parámetro esté presente
+        if (!diaSemana && !creditosMin && !creditosMax) {
+            return res.status(400).json({ 
+                error: 'Se requiere al menos uno de los parámetros: diaSemana, creditosMin o creditosMax' 
+            });
+        }
+
+        let whereClause = {};
+
+        // Filtro por día de la semana (búsqueda exacta)
+        if (diaSemana) {
+            if (diaSemana.trim() === '') {
+                return res.status(400).json({ 
+                    error: 'El parámetro diaSemana no puede estar vacío' 
+                });
+            }
+            whereClause.diaSemana = {
+                [Op.eq]: diaSemana.trim()
+            };
+        }
+
+        // Filtro por créditos (rango)
+        if (creditosMin || creditosMax) {
+            const min = creditosMin ? parseInt(creditosMin) : null;
+            const max = creditosMax ? parseInt(creditosMax) : null;
+
+            // Validar que sean números válidos
+            if (creditosMin && isNaN(min)) {
+                return res.status(400).json({ 
+                    error: 'El parámetro creditosMin debe ser un número válido' 
+                });
+            }
+            if (creditosMax && isNaN(max)) {
+                return res.status(400).json({ 
+                    error: 'El parámetro creditosMax debe ser un número válido' 
+                });
+            }
+
+            // Validar que los valores sean positivos
+            if ((min && min < 0) || (max && max < 0)) {
+                return res.status(400).json({ 
+                    error: 'Los valores de créditos deben ser números positivos' 
+                });
+            }
+
+            // Validar que min no sea mayor que max
+            if (min && max && min > max) {
+                return res.status(400).json({ 
+                    error: 'creditosMin no puede ser mayor que creditosMax' 
+                });
+            }
+
+            if (min && max) {
+                whereClause.creditos = {
+                    [Op.between]: [min, max]
+                };
+            } else if (min) {
+                whereClause.creditos = {
+                    [Op.gte]: min
+                };
+            } else if (max) {
+                whereClause.creditos = {
+                    [Op.lte]: max
+                };
+            }
+        }
+
+        const clases = await Clases.findAll({
+            where: whereClause,
+            order: [
+                ['diaSemana', 'ASC'],
+                ['creditos', 'DESC'],
+                ['nombre', 'ASC']
+            ]
+        });
+
+        if (clases.length === 0) {
+            return res.status(200).json({ 
+                message: 'No se encontraron clases con los criterios especificados', 
+                datos: [] 
+            });
+        }
+
+        res.status(200).json({
+            message: `Se encontraron ${clases.length} clase(s)`,
+            datos: clases
+        });
+    } catch (error) {
+        console.error('Error al filtrar clases por día y créditos:', error);
+        res.status(500).json({ 
+            error: 'Error al filtrar clases por día y créditos',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};

@@ -229,4 +229,165 @@ rutas.delete('/eliminar', [
         .withMessage('El ID es obligatorio')
 ], controladorClases.EliminarClase);
 
+/**
+ * @swagger
+ * /clases/filtrar-nombre:
+ *   get:
+ *     summary: Filtrar clases por nombre (búsqueda parcial)
+ *     description: Busca clases que coincidan parcialmente con el nombre proporcionado
+ *     tags: [Clases]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: true
+ *         schema:
+ *           type: string
+ *           example: "Matemáticas"
+ *         description: Nombre o parte del nombre de la clase a buscar
+ *     responses:
+ *       200:
+ *         description: Lista de clases que coinciden con el criterio de búsqueda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Se encontraron 3 clase(s)"
+ *                 datos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       codigo:
+ *                         type: string
+ *                         example: "MAT101"
+ *                       nombre:
+ *                         type: string
+ *                         example: "Matemáticas Básicas"
+ *                       diaSemana:
+ *                         type: string
+ *                         example: "Lunes"
+ *                       creditos:
+ *                         type: integer
+ *                         example: 4
+ *       400:
+ *         description: Parámetro nombre no proporcionado o inválido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       msg:
+ *                         type: string
+ *                         example: "El parámetro nombre es obligatorio"
+ *                       param:
+ *                         type: string
+ *                         example: "nombre"
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+/**
+ * @swagger
+ * /clases/filtrar-dia-creditos:
+ *   get:
+ *     summary: Filtrar clases por día de la semana y créditos
+ *     description: Busca clases por día de la semana y rango de créditos
+ *     tags: [Clases]
+ *     parameters:
+ *       - in: query
+ *         name: creditosMin
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 3
+ *           maximum: 3
+ *           example: 3
+ *         description: Créditos mínimos de la clase
+ *       - in: query
+ *         name: creditosMax
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 3
+ *           maximum: 4
+ *           example: 4
+ *         description: Créditos máximos de la clase
+ *     responses:
+ *       200:
+ *         description: Lista de clases que coinciden con los criterios de búsqueda
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Se encontraron 2 clase(s)"
+ *                 datos:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       codigo:
+ *                         type: string
+ *                         example: "MAT101"
+ *                       nombre:
+ *                         type: string
+ *                         example: "Matemáticas Básicas"
+ *                       diaSemana:
+ *                         type: string
+ *                         example: "Lunes"
+ *                       creditos:
+ *                         type: integer
+ *                         example: 4
+ *       400:
+ *         description: Parámetros inválidos o faltantes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       msg:
+ *                         type: string
+ *                         example: "El parámetro diaSemana es obligatorio"
+ *                       param:
+ *                         type: string
+ *                         example: "diaSemana"
+ *       500:
+ *         description: Error interno del servidor
+ */
+
+// Filtrar clases por nombre (búsqueda parcial)
+rutas.get('/filtrar-nombre',
+    query('nombre')
+        .notEmpty()
+        .withMessage('El parámetro nombre es obligatorio'),
+    controladorClases.filtrarClasesPorNombre);
+
+// Filtrar clases por día de la semana y créditos
+rutas.get('/filtrar-dia-creditos',
+    query('diaSemana')
+        .notEmpty()
+        .withMessage('El parámetro diaSemana es obligatorio'),
+    controladorClases.filtrarClasesPorDiaYCreditos);
+
 module.exports = rutas;
