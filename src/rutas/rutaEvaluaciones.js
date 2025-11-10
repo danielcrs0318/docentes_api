@@ -93,6 +93,9 @@ const rutas = Router();
  * /evaluaciones/guardar:
  *   post:
  *     summary: Crea una evaluación y la asigna a estudiantes (por clase, sección o lista)
+ *     description: >
+ *       Crea una nueva evaluación vinculada a un parcial y periodo.  
+ *       Los correos de notificación a los estudiantes se envían **en paralelo** para evitar sobrecargar el servidor.
  *     tags: [Evaluaciones]
  *     requestBody:
  *       required: true
@@ -109,31 +112,41 @@ const rutas = Router();
  *             properties:
  *               titulo:
  *                 type: string
+ *                 example: "Examen Parcial 1"
  *               notaMaxima:
  *                 type: number
+ *                 example: 100
  *               fechaInicio:
  *                 type: string
  *                 format: date-time
+ *                 example: "2025-11-10T08:00:00Z"
  *               fechaCierre:
  *                 type: string
  *                 format: date-time
+ *                 example: "2025-11-15T23:59:00Z"
  *               estructura:
  *                 type: object
+ *                 example: { "preguntas": 10, "tipo": "multiple" }
  *               claseId:
  *                 type: integer
+ *                 example: 2
  *               seccionId:
  *                 type: integer
+ *                 example: 5
  *               estudiantes:
  *                 type: array
  *                 items:
  *                   type: integer
+ *                   example: 12
  *               parcialId:
  *                 type: integer
+ *                 example: 3
  *               periodoId:
  *                 type: integer
+ *                 example: 1
  *     responses:
  *       201:
- *         description: Evaluación creada y asignada
+ *         description: Evaluación creada y asignada. Correos enviados en paralelo.
  *         content:
  *           application/json:
  *             schema:
@@ -143,6 +156,10 @@ const rutas = Router();
  *                   $ref: '#/components/schemas/Evaluacion'
  *                 asignadas:
  *                   type: integer
+ *                   example: 25
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Evaluación creada y correos enviados"
  *       400:
  *         description: Error en datos o parámetros
  */
@@ -152,6 +169,9 @@ const rutas = Router();
  * /evaluaciones/editar:
  *   put:
  *     summary: Edita los datos de una evaluación (id en query)
+ *     description: >
+ *       Actualiza los campos de una evaluación existente.  
+ *       Los correos de notificación a los estudiantes asignados se envían **en paralelo**.
  *     tags: [Evaluaciones]
  *     parameters:
  *       - in: query
@@ -179,7 +199,9 @@ const rutas = Router();
  *                 type: object
  *     responses:
  *       200:
- *         description: Evaluación actualizada
+ *         description: Evaluación actualizada y correos enviados en paralelo.
+ *       404:
+ *         description: Evaluación no encontrada
  */
 
 /**
@@ -187,6 +209,9 @@ const rutas = Router();
  * /evaluaciones/eliminar:
  *   delete:
  *     summary: Elimina una evaluación (id en query)
+ *     description: >
+ *       Elimina la evaluación y sus asignaciones.  
+ *       Los correos de notificación se envían **en paralelo** a los estudiantes afectados.
  *     tags: [Evaluaciones]
  *     parameters:
  *       - in: query
@@ -196,7 +221,9 @@ const rutas = Router();
  *           type: integer
  *     responses:
  *       200:
- *         description: Evaluación eliminada
+ *         description: Evaluación eliminada y correos enviados en paralelo
+ *       404:
+ *         description: Evaluación no encontrada
  */
 
 /**
@@ -204,6 +231,9 @@ const rutas = Router();
  * /evaluaciones/registrarNota:
  *   post:
  *     summary: Registra la nota de un estudiante para una evaluación
+ *     description: >
+ *       Registra o actualiza la nota de un estudiante y recalcula el total del parcial.  
+ *       Envía un correo al estudiante notificando la calificación.
  *     tags: [Evaluaciones]
  *     parameters:
  *       - in: query
@@ -221,13 +251,20 @@ const rutas = Router();
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/RegistrarNotaRequest'
+ *             type: object
+ *             properties:
+ *               nota:
+ *                 type: number
+ *                 example: 85
  *     responses:
  *       200:
- *         description: Nota registrada
+ *         description: Nota registrada y correo enviado
+ *       400:
+ *         description: Nota inválida o fuera de rango
  *       404:
- *         description: Asignación no encontrada
+ *         description: Evaluación o estudiante no encontrado
  */
+
 
 /**
  * @swagger

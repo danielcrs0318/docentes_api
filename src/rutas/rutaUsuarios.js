@@ -77,7 +77,7 @@ rutas.post('/iniciar-sesion', [
 
 /**
  * @swagger
- * /usuarios/solicitar-reset:
+ * /usuarios/solicitar-restablecimiento:
  *   post:
  *     summary: Solicita un PIN para restablecer la contraseña
  *     tags: [Usuarios]
