@@ -6,6 +6,7 @@ const Periodos = require('../modelos/Periodos');
 const Clases = require('../modelos/Clases');
 const Secciones = require('../modelos/Secciones');
 const { validationResult } = require('express-validator');
+const { enviarCorreo } = require('../configuraciones/correo');
 
 exports.Listar = async (req, res) => {
   // opcional: filtrar por claseId, parcialId o periodoId
@@ -32,119 +33,214 @@ exports.Guardar = async (req, res) => {
   try {
     const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId } = req.body;
 
-    // validar que existan parcial y periodo
-    const parcial = await Parciales.findOne({ where: { id: parcialId } });
+    const parcial = await Parciales.findByPk(parcialId);
     if (!parcial) return res.status(400).json({ msj: 'Parcial no encontrado' });
-    const periodo = await Periodos.findOne({ where: { id: periodoId } });
+    const periodo = await Periodos.findByPk(periodoId);
     if (!periodo) return res.status(400).json({ msj: 'Periodo no encontrado' });
 
-    // Validar que se especifique al menos un objetivo de asignación
     if (!claseId && !seccionId && (!estudiantesBody || estudiantesBody.length === 0)) {
-      return res.status(400).json({ msj: 'Debe especificar al menos uno: claseId, seccionId o estudiantes (array de IDs)' });
+      return res.status(400).json({ msj: 'Debe especificar claseId, seccionId o estudiantes' });
     }
 
-    // crear la definición de la evaluación
-    const evaluacion = await Evaluaciones.create({ titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId: claseId || null, parcialId, periodoId });
+    const evaluacion = await Evaluaciones.create({
+      titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId: claseId || null, parcialId, periodoId
+    });
 
-    // Determinar estudiantes objetivo
     let estudiantes = [];
     if (Array.isArray(estudiantesBody) && estudiantesBody.length > 0) {
       estudiantes = await Estudiantes.findAll({ where: { id: estudiantesBody } });
     } else if (seccionId) {
-      // validar seccion
-      const seccion = await Secciones.findByPk(seccionId);
-      if (!seccion) return res.status(400).json({ msj: 'Sección no encontrada' });
-      estudiantes = await Estudiantes.findAll({ where: { seccionId: seccionId } });
+      estudiantes = await Estudiantes.findAll({ where: { seccionId } });
     } else if (claseId) {
-      // validar clase
-      const clase = await Clases.findByPk(claseId);
-      if (!clase) return res.status(400).json({ msj: 'Clase no encontrada' });
-      estudiantes = await Estudiantes.findAll({ where: { claseId: claseId } });
+      estudiantes = await Estudiantes.findAll({ where: { claseId } });
     }
 
-    if (!estudiantes || estudiantes.length === 0) {
-      return res.status(201).json({ evaluacion, asignadas: 0, mensaje: 'Evaluación creada pero no se encontraron estudiantes para asignar' });
+    if (estudiantes.length === 0) {
+      return res.status(201).json({ evaluacion, asignadas: 0, mensaje: 'Evaluación creada pero sin estudiantes asignados' });
     }
 
     const asignaciones = estudiantes.map(e => ({ evaluacionId: evaluacion.id, estudianteId: e.id }));
+    await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
 
-    // Evitar duplicados: bulkCreate con ignoreDuplicates si el dialecto lo soporta
-    try {
-      await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
-    } catch (bulkErr) {
-      // Si el dialecto no soporta ignoreDuplicates, intentar insertar filtrando duplicados manualmente
-      const estudianteIds = asignaciones.map(a => a.estudianteId);
-      const existentes = await EvaluacionesEstudiantes.findAll({ where: { evaluacionId: evaluacion.id, estudianteId: estudianteIds } });
-      const existentesIds = existentes.map(e => e.estudianteId);
-      const aInsertar = asignaciones.filter(a => !existentesIds.includes(a.estudianteId));
-      if (aInsertar.length > 0) {
-        await EvaluacionesEstudiantes.bulkCreate(aInsertar);
-      }
-    }
+    // ---- Envío de correos en paralelo (no bloqueante)
+    const promesasCorreos = estudiantes
+      .filter(e => e.correo)
+      .map(e => {
+        const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
+        const contenido = `
+          <h3>Hola ${e.nombre || 'estudiante'},</h3>
+          <p>Se te ha asignado una nueva evaluación:</p>
+          <ul>
+            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
+            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
+            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
+            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
+          </ul>
+          <p>Por favor revisa la plataforma para más detalles.</p>
+        `;
+        return enviarCorreo(e.correo, asunto, contenido);
+      });
 
-    res.status(201).json({ evaluacion, asignadas: asignaciones.length });
+    Promise.allSettled(promesasCorreos).then(results => {
+      const fallos = results.filter(r => r.status === 'rejected');
+      if (fallos.length) console.warn(`⚠️ Fallaron ${fallos.length} envíos de correo`);
+    });
+
+    res.status(201).json({ evaluacion, asignadas: asignaciones.length, mensaje: 'Evaluación creada (envío de correos en proceso)' });
   } catch (err) {
+    console.error('Error al guardar evaluación:', err);
     res.status(500).json({ msj: 'Error al guardar evaluación', error: err.message || err });
   }
 };
+
+
+// ----------------------------------------------------------------------
+
 
 exports.Editar = async (req, res) => {
   const errors = validationResult(req).errors;
   if (errors.length > 0) {
     return res.status(400).json({ msj: 'Hay errores', data: errors });
   }
+
   const { id } = req.query;
   try {
+    const evaluacionAnterior = await Evaluaciones.findByPk(id);
+    if (!evaluacionAnterior) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
     await Evaluaciones.update({ ...req.body }, { where: { id } });
-    res.json({ msj: 'Evaluación actualizada' });
+    const evaluacion = await Evaluaciones.findByPk(id);
+
+    const asignaciones = await EvaluacionesEstudiantes.findAll({
+      where: { evaluacionId: id },
+      include: [{ model: Estudiantes, as: 'estudiante' }]
+    });
+
+    // Correos en paralelo
+    const promesasCorreos = asignaciones
+      .filter(a => a.estudiante?.correo)
+      .map(a => {
+        const e = a.estudiante;
+        const asunto = `Actualización en la evaluación: ${evaluacion.titulo}`;
+        const contenido = `
+          <h3>Hola ${e.nombre || 'estudiante'},</h3>
+          <p>Se ha actualizado la evaluación a la que estás asignado:</p>
+          <ul>
+            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
+            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
+            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
+            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
+          </ul>`;
+        return enviarCorreo(e.correo, asunto, contenido);
+      });
+
+    Promise.allSettled(promesasCorreos).then(r => {
+      const fallos = r.filter(x => x.status === 'rejected');
+      if (fallos.length) console.warn(`⚠️ ${fallos.length} correos fallaron en Editar`);
+    });
+
+    res.json({ msj: 'Evaluación actualizada (envío de correos en proceso)' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msj: 'Error al actualizar evaluación', error: err });
   }
 };
+
+
+// ----------------------------------------------------------------------
+
 
 exports.Eliminar = async (req, res) => {
   const errors = validationResult(req).errors;
   if (errors.length > 0) {
     return res.status(400).json({ msj: 'Hay errores', data: errors });
   }
+
   const { id } = req.query;
   try {
-    // eliminar asignaciones primero
+    const evaluacion = await Evaluaciones.findByPk(id);
+    if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    const asignaciones = await EvaluacionesEstudiantes.findAll({
+      where: { evaluacionId: id },
+      include: [{ model: Estudiantes, as: 'estudiante' }]
+    });
+
     await EvaluacionesEstudiantes.destroy({ where: { evaluacionId: id } });
     await Evaluaciones.destroy({ where: { id } });
-    res.json({ msj: 'Evaluación eliminada' });
+
+    // Enviar correos en paralelo
+    const promesasCorreos = asignaciones
+      .filter(a => a.estudiante?.correo)
+      .map(a => {
+        const e = a.estudiante;
+        const asunto = `Evaluación eliminada: ${evaluacion.titulo}`;
+        const contenido = `
+          <h3>Hola ${e.nombre || 'estudiante'},</h3>
+          <p>La evaluación <strong>${evaluacion.titulo}</strong> ha sido eliminada.</p>
+          <p>Ya no aparecerá en tu lista de evaluaciones.</p>`;
+        return enviarCorreo(e.correo, asunto, contenido);
+      });
+
+    Promise.allSettled(promesasCorreos).then(r => {
+      const fallos = r.filter(x => x.status === 'rejected');
+      if (fallos.length) console.warn(`⚠️ ${fallos.length} correos fallaron en Eliminar`);
+    });
+
+    res.json({ msj: 'Evaluación eliminada (envío de correos en proceso)' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msj: 'Error al eliminar evaluación', error: err });
   }
 };
 
-// opcional: registrar nota para un estudiante específico
+
+// ----------------------------------------------------------------------
+
+
 exports.RegistrarNota = async (req, res) => {
   const { evaluacionId, estudianteId } = req.query;
   const { nota } = req.body;
+
   try {
-    // buscar la evaluación para validar notaMaxima
     const evaluacion = await Evaluaciones.findByPk(evaluacionId);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
 
-    // validar nota numérica
     const valor = parseFloat(nota);
     if (isNaN(valor) || valor < 0) return res.status(400).json({ msj: 'Nota inválida' });
     if (evaluacion.notaMaxima && valor > parseFloat(evaluacion.notaMaxima)) {
       return res.status(400).json({ msj: `La nota no puede ser mayor a la notaMaxima (${evaluacion.notaMaxima})` });
     }
 
-    const registro = await EvaluacionesEstudiantes.findOne({ where: { evaluacionId, estudianteId } });
+    const registro = await EvaluacionesEstudiantes.findOne({
+      where: { evaluacionId, estudianteId },
+      include: [{ model: Estudiantes, as: 'estudiante' }]
+    });
     if (!registro) return res.status(404).json({ msj: 'Asignación no encontrada' });
+
     registro.nota = valor;
     registro.estado = 'CALIFICADO';
     await registro.save();
 
-    // después de guardar, calcular total del parcial para el estudiante
-    const parcialId = evaluacion.parcialId;
-    const total = await calcularTotalParcial(estudianteId, parcialId);
+    const total = await calcularTotalParcial(estudianteId, evaluacion.parcialId);
 
-    res.json({ msj: 'Nota registrada', registro, totalParcial: total });
+    const estudiante = registro.estudiante;
+    if (estudiante?.correo) {
+      const asunto = `Nota registrada - ${evaluacion.titulo}`;
+      const contenido = `
+        <h3>Hola ${estudiante.nombre || 'estudiante'},</h3>
+        <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong>:</p>
+        <ul>
+          <li><strong>Nota obtenida:</strong> ${valor}</li>
+          <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
+          <li><strong>Total del parcial:</strong> ${total}</li>
+        </ul>`;
+      enviarCorreo(estudiante.correo, asunto, contenido).catch(err =>
+        console.error(`❌ Error al enviar correo a ${estudiante.correo}:`, err.message)
+      );
+    }
+
+    res.json({ msj: 'Nota registrada (correo enviándose en segundo plano)', registro, totalParcial: total });
   } catch (err) {
     res.status(500).json({ msj: 'Error al registrar nota', error: err.message || err });
   }
