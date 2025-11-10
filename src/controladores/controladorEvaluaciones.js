@@ -46,6 +46,12 @@ exports.Guardar = async (req, res) => {
       titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId: claseId || null, parcialId, periodoId
     });
 
+    // 🔹 Obtener información de la clase (si existe)
+    let clase = null;
+    if (claseId) {
+      clase = await Clases.findByPk(claseId);
+    }
+
     let estudiantes = [];
     if (Array.isArray(estudiantesBody) && estudiantesBody.length > 0) {
       estudiantes = await Estudiantes.findAll({ where: { id: estudiantesBody } });
@@ -72,6 +78,7 @@ exports.Guardar = async (req, res) => {
           <p>Se te ha asignado una nueva evaluación:</p>
           <ul>
             <li><strong>Título:</strong> ${evaluacion.titulo}</li>
+            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
             <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
             <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
             <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
@@ -111,6 +118,9 @@ exports.Editar = async (req, res) => {
     await Evaluaciones.update({ ...req.body }, { where: { id } });
     const evaluacion = await Evaluaciones.findByPk(id);
 
+    // 🔹 Obtener información de la clase
+    const clase = evaluacion.claseId ? await Clases.findByPk(evaluacion.claseId) : null;
+
     const asignaciones = await EvaluacionesEstudiantes.findAll({
       where: { evaluacionId: id },
       include: [{ model: Estudiantes, as: 'estudiante' }]
@@ -127,6 +137,7 @@ exports.Editar = async (req, res) => {
           <p>Se ha actualizado la evaluación a la que estás asignado:</p>
           <ul>
             <li><strong>Título:</strong> ${evaluacion.titulo}</li>
+            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
             <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
             <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
             <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
@@ -161,6 +172,9 @@ exports.Eliminar = async (req, res) => {
     const evaluacion = await Evaluaciones.findByPk(id);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
 
+    // 🔹 Obtener información de la clase
+    const clase = evaluacion.claseId ? await Clases.findByPk(evaluacion.claseId) : null;
+
     const asignaciones = await EvaluacionesEstudiantes.findAll({
       where: { evaluacionId: id },
       include: [{ model: Estudiantes, as: 'estudiante' }]
@@ -177,7 +191,7 @@ exports.Eliminar = async (req, res) => {
         const asunto = `Evaluación eliminada: ${evaluacion.titulo}`;
         const contenido = `
           <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>La evaluación <strong>${evaluacion.titulo}</strong> ha sido eliminada.</p>
+          <p>La evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${clase ? clase.nombre : 'Sin clase asociada'}</strong> ha sido eliminada.</p>
           <p>Ya no aparecerá en tu lista de evaluaciones.</p>`;
         return enviarCorreo(e.correo, asunto, contenido);
       });
@@ -194,10 +208,6 @@ exports.Eliminar = async (req, res) => {
   }
 };
 
-
-// ----------------------------------------------------------------------
-
-
 exports.RegistrarNota = async (req, res) => {
   const { evaluacionId, estudianteId } = req.query;
   const { nota } = req.body;
@@ -205,6 +215,13 @@ exports.RegistrarNota = async (req, res) => {
   try {
     const evaluacion = await Evaluaciones.findByPk(evaluacionId);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    // 🔹 Obtener nombre de la clase
+    let claseNombre = 'Sin clase asignada';
+    if (evaluacion.claseId) {
+      const clase = await Clases.findByPk(evaluacion.claseId);
+      if (clase) claseNombre = clase.nombre || `Clase #${clase.id}`;
+    }
 
     const valor = parseFloat(nota);
     if (isNaN(valor) || valor < 0) return res.status(400).json({ msj: 'Nota inválida' });
@@ -229,14 +246,14 @@ exports.RegistrarNota = async (req, res) => {
       const asunto = `Nota registrada - ${evaluacion.titulo}`;
       const contenido = `
         <h3>Hola ${estudiante.nombre || 'estudiante'},</h3>
-        <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong>:</p>
+        <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${claseNombre}</strong>:</p>
         <ul>
           <li><strong>Nota obtenida:</strong> ${valor}</li>
           <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
           <li><strong>Total del parcial:</strong> ${total}</li>
         </ul>`;
       enviarCorreo(estudiante.correo, asunto, contenido).catch(err =>
-        console.error(`❌ Error al enviar correo a ${estudiante.correo}:`, err.message)
+        console.error(`Error al enviar correo a ${estudiante.correo}:`, err.message)
       );
     }
 
