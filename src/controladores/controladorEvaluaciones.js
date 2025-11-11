@@ -90,7 +90,7 @@ exports.Guardar = async (req, res) => {
 
     Promise.allSettled(promesasCorreos).then(results => {
       const fallos = results.filter(r => r.status === 'rejected');
-      if (fallos.length) console.warn(`⚠️ Fallaron ${fallos.length} envíos de correo`);
+      if (fallos.length) console.warn(` Fallaron ${fallos.length} envíos de correo`);
     });
 
     res.status(201).json({ evaluacion, asignadas: asignaciones.length, mensaje: 'Evaluación creada (envío de correos en proceso)' });
@@ -147,7 +147,7 @@ exports.Editar = async (req, res) => {
 
     Promise.allSettled(promesasCorreos).then(r => {
       const fallos = r.filter(x => x.status === 'rejected');
-      if (fallos.length) console.warn(`⚠️ ${fallos.length} correos fallaron en Editar`);
+      if (fallos.length) console.warn(` ${fallos.length} correos fallaron en Editar`);
     });
 
     res.json({ msj: 'Evaluación actualizada (envío de correos en proceso)' });
@@ -198,7 +198,7 @@ exports.Eliminar = async (req, res) => {
 
     Promise.allSettled(promesasCorreos).then(r => {
       const fallos = r.filter(x => x.status === 'rejected');
-      if (fallos.length) console.warn(`⚠️ ${fallos.length} correos fallaron en Eliminar`);
+      if (fallos.length) console.warn(` ${fallos.length} correos fallaron en Eliminar`);
     });
 
     res.json({ msj: 'Evaluación eliminada (envío de correos en proceso)' });

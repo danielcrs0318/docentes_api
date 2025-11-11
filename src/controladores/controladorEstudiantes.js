@@ -411,12 +411,12 @@ exports.CargarDesdeExcel = async (req, res) => {
             });
         }
 
-        console.log(`📊 Estudiantes leídos del Excel: ${estudiantes.length}`);
+        console.log(`Estudiantes leídos del Excel: ${estudiantes.length}`);
         if (periodo) {
-            console.log(`� Periodo: ${periodo.nombre || 'Sin nombre'} (${periodo.fechaInicio.toISOString().split('T')[0]} - ${periodo.fechaFin.toISOString().split('T')[0]}) ${periodoCreado ? '✨ CREADO' : '✓ Existente'}`);
+            console.log(`Periodo: ${periodo.nombre || 'Sin nombre'} (${periodo.fechaInicio.toISOString().split('T')[0]} - ${periodo.fechaFin.toISOString().split('T')[0]}) ${periodoCreado ? 'CREADO' : ' Existente'}`);
         }
-        console.log(`�📚 Clase: ${clase.nombre} (${clase.codigo}) ${claseCreada ? '✨ CREADA' : '✓ Existente'}`);
-        console.log(`📖 Sección: ${seccion ? seccion.nombre : 'Sin sección'} ${seccionCreada ? '✨ CREADA' : '✓ Existente'}`);
+        console.log(`Clase: ${clase.nombre} (${clase.codigo}) ${claseCreada ? 'CREADA' : ' Existente'}`);
+        console.log(`Sección: ${seccion ? seccion.nombre : 'Sin sección'} ${seccionCreada ? 'CREADA' : ' Existente'}`);
 
         // Procesar estudiantes
         const estudiantesCreados = [];
@@ -472,7 +472,7 @@ exports.CargarDesdeExcel = async (req, res) => {
                     seccionId: seccion ? seccion.id : null
                 };
 
-                console.log(`➕ Creando inscripción para ${est.nombre}:`, datosInscripcion);
+                console.log(` Creando inscripción para ${est.nombre}:`, datosInscripcion);
 
                 await EstudiantesClases.create(datosInscripcion);
 
@@ -485,7 +485,7 @@ exports.CargarDesdeExcel = async (req, res) => {
                 });
 
             } catch (error) {
-                console.error(`❌ Error procesando estudiante ${est.correo}:`, error);
+                console.error(` Error procesando estudiante ${est.correo}:`, error);
                 console.error('Detalles del error:', {
                     message: error.message,
                     name: error.name,

@@ -42,7 +42,7 @@ exports.insertar = async (req, res) => {
     try {
         const { docenteId, contrasena } = req.body;
 
-        // ✅ Validar si el docente existe antes de crear el usuario
+        // Validar si el docente existe antes de crear el usuario
         const docenteExiste = await Docente.findByPk(docenteId);
         if (!docenteExiste) {
             return res.status(404).json({
