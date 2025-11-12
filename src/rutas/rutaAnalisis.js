@@ -123,7 +123,7 @@ rutas.get('/parcial', [
  *     description: Retorna estadísticas acumuladas del periodo completo incluyendo evolución por parciales, asistencia y proyectos
  *     tags: [Análisis]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: periodoId
