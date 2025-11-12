@@ -19,7 +19,7 @@ const rutas = Router();
  *     description: Retorna estadísticas de rendimiento (promedios, asistencia) de estudiantes en un parcial específico de una clase
  *     tags: [Análisis]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: parcialId
@@ -123,7 +123,7 @@ rutas.get('/parcial', [
  *     description: Retorna estadísticas acumuladas del periodo completo incluyendo evolución por parciales, asistencia y proyectos
  *     tags: [Análisis]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: periodoId
@@ -216,7 +216,7 @@ rutas.get('/periodo', [
  *     description: Retorna el desempeño del estudiante en todas sus clases del periodo
  *     tags: [Análisis]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: estudianteId
@@ -293,7 +293,7 @@ rutas.get('/reporte/estudiante', [
  *     description: Retorna estadísticas generales de una clase en un periodo, incluyendo evolución por parciales
  *     tags: [Análisis]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: claseId
@@ -366,7 +366,7 @@ rutas.get('/reporte/clase', [
  *     description: Retorna estadísticas de todas las clases de un docente en el periodo
  *     tags: [Análisis]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     parameters:
  *       - in: query
  *         name: docenteId
