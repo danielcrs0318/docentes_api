@@ -18,21 +18,49 @@ const { validarToken } = require('../configuraciones/passport');
  *       properties:
  *         id:
  *           type: integer
- *           description: ID único del usuario
+ *           description: ID autogenerado del usuario
  *         login:
  *           type: string
+ *           maxLength: 50
  *           description: Nombre de usuario para iniciar sesión
  *         correo:
  *           type: string
  *           format: email
+ *           maxLength: 150
  *           description: Correo electrónico del usuario
+ *         pin:
+ *           type: string
+ *           maxLength: 6
+ *           description: Código PIN temporal para recuperación de acceso
+ *         pinExpiracion:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha y hora de expiración del PIN
+ *         intentos:
+ *           type: integer
+ *           description: Número de intentos fallidos de inicio de sesión
+ *           default: 0
+ *         contrasena:
+ *           type: string
+ *           format: password
+ *           description: Contraseña del usuario (encriptada en la base de datos)
  *         estado:
  *           type: string
  *           enum: [AC, IN, BL]
- *           description: Estado del usuario (AC=Activo, IN=Inactivo, BL=Bloqueado)
+ *           description: Estado del usuario (Activo, Inactivo o Bloqueado)
+ *           default: AC
  *         docenteId:
  *           type: integer
- *           description: ID del docente asociado
+ *           description: ID del docente asociado al usuario
+ *       example:
+ *         login: dmolina
+ *         correo: daniel@example.com
+ *         contrasena: "123456"
+ *         pin: "904512"
+ *         pinExpiracion: "2025-11-12T23:59:00Z"
+ *         intentos: 0
+ *         estado: AC
+ *         docenteId: 1
  */
 
 /**

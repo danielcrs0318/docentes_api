@@ -11,51 +11,85 @@ const rutas = Router();
  *   schemas:
  *     Evaluacion:
  *       type: object
+ *       required:
+ *         - titulo
+ *         - peso
+ *         - tipo
+ *         - fechaInicio
+ *         - fechaCierre
+ *         - claseId
+ *         - parcialId
+ *         - periodoId
  *       properties:
  *         id:
  *           type: integer
+ *           description: ID autogenerado de la evaluación
  *         titulo:
  *           type: string
+ *           maxLength: 200
+ *           description: Título o nombre de la evaluación
  *         notaMaxima:
  *           type: number
  *           format: float
+ *           description: Nota máxima que se puede obtener en la evaluación
+ *         peso:
+ *           type: number
+ *           format: float
+ *           description: Peso relativo de la evaluación dentro del parcial (para promedio ponderado)
+ *           default: 1.0
+ *         tipo:
+ *           type: string
+ *           enum: [NORMAL, REPOSICION]
+ *           description: Tipo de evaluación (normal o de reposición)
+ *           default: NORMAL
  *         fechaInicio:
  *           type: string
  *           format: date-time
+ *           description: Fecha y hora de inicio de la evaluación
  *         fechaCierre:
  *           type: string
  *           format: date-time
+ *           description: Fecha y hora de cierre de la evaluación
  *         estructura:
  *           type: object
+ *           description: Estructura personalizada de la evaluación (almacenada como JSON)
+ *           example:
+ *             preguntas:
+ *               - enunciado: "Explica el concepto de encapsulación en POO"
+ *                 valor: 5
+ *               - enunciado: "Define herencia y da un ejemplo"
+ *                 valor: 5
  *         estado:
  *           type: string
  *           enum: [ACTIVO, INACTIVO]
+ *           description: Estado actual de la evaluación
+ *           default: ACTIVO
  *         claseId:
  *           type: integer
+ *           description: ID de la clase asociada a la evaluación
  *         parcialId:
  *           type: integer
+ *           description: ID del parcial al que pertenece la evaluación
  *         periodoId:
  *           type: integer
- *     AsignacionRequest:
- *       type: object
- *       properties:
- *         claseId:
- *           type: integer
- *         seccionId:
- *           type: integer
- *         estudiantes:
- *           type: array
- *           items:
- *             type: integer
- *     RegistrarNotaRequest:
- *       type: object
- *       properties:
- *         nota:
- *           type: number
- *           format: float
- * tags:
- *   name: Evaluaciones
- *   description: Gestión de evaluaciones
+ *           description: ID del periodo académico asociado
+ *       example:
+ *         titulo: "Evaluación Parcial 1 - Programación"
+ *         notaMaxima: 100
+ *         peso: 1.5
+ *         tipo: "NORMAL"
+ *         fechaInicio: "2025-11-15T08:00:00Z"
+ *         fechaCierre: "2025-11-20T23:59:00Z"
+ *         estructura:
+ *           preguntas:
+ *             - enunciado: "Describa el ciclo de vida del software"
+ *               valor: 10
+ *             - enunciado: "Implemente una función recursiva en C#"
+ *               valor: 10
+ *         estado: "ACTIVO"
+ *         claseId: 3
+ *         parcialId: 2
+ *         periodoId: 1
  */
 
 /**
@@ -92,76 +126,25 @@ const rutas = Router();
  * @swagger
  * /evaluaciones/guardar:
  *   post:
- *     summary: Crea una evaluación y la asigna a estudiantes (por clase, sección o lista)
- *     description: >
- *       Crea una nueva evaluación vinculada a un parcial y periodo.  
- *       Los correos de notificación a los estudiantes se envían **en paralelo** para evitar sobrecargar el servidor.
+ *     summary: Guardar una nueva evaluación
  *     tags: [Evaluaciones]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - titulo
- *               - fechaInicio
- *               - fechaCierre
- *               - parcialId
- *               - periodoId
- *             properties:
- *               titulo:
- *                 type: string
- *                 example: "Examen Parcial 1"
- *               notaMaxima:
- *                 type: number
- *                 example: 100
- *               fechaInicio:
- *                 type: string
- *                 format: date-time
- *                 example: "2025-11-10T08:00:00Z"
- *               fechaCierre:
- *                 type: string
- *                 format: date-time
- *                 example: "2025-11-15T23:59:00Z"
- *               estructura:
- *                 type: object
- *                 example: { "preguntas": 10, "tipo": "multiple" }
- *               claseId:
- *                 type: integer
- *                 example: 2
- *               seccionId:
- *                 type: integer
- *                 example: 5
- *               estudiantes:
- *                 type: array
- *                 items:
- *                   type: integer
- *                   example: 12
- *               parcialId:
- *                 type: integer
- *                 example: 3
- *               periodoId:
- *                 type: integer
- *                 example: 1
+ *             $ref: '#/components/schemas/Evaluacion'
  *     responses:
  *       201:
- *         description: Evaluación creada y asignada. Correos enviados en paralelo.
+ *         description: Evaluación creada exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 evaluacion:
- *                   $ref: '#/components/schemas/Evaluacion'
- *                 asignadas:
- *                   type: integer
- *                   example: 25
- *                 mensaje:
- *                   type: string
- *                   example: "Evaluación creada y correos enviados"
+ *               $ref: '#/components/schemas/Evaluacion'
  *       400:
- *         description: Error en datos o parámetros
+ *         description: Datos inválidos en la solicitud
+ *       500:
+ *         description: Error del servidor
  */
 
 /**
