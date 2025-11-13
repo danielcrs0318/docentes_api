@@ -376,7 +376,7 @@ rutas.get('/imagenes/listar', [
 
 /**
  * @swagger
- * /usuarios/imagenes:
+ * /usuarios/imagenes/guardar:
  *   post:
  *     summary: Guardar una nueva imagen de usuario
  *     tags: [Imágenes de Usuario]
@@ -432,7 +432,7 @@ rutas.post('/imagenes', [
 
 /**
  * @swagger
- * /usuarios/imagenes:
+ * /usuarios/imagenes/editar:
  *   put:
  *     summary: Editar una imagen existente de usuario
  *     tags: [Imágenes de Usuario]
@@ -488,7 +488,7 @@ rutas.put('/imagenes', [
 
 /**
  * @swagger
- * /usuarios/imagenes:
+ * /usuarios/imagenes/eliminar:
  *   delete:
  *     summary: Eliminar una imagen de usuario
  *     tags: [Imágenes de Usuario]
