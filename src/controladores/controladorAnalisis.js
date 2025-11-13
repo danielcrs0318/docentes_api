@@ -532,7 +532,7 @@ exports.ReporteEstudiante = async (req, res) => {
         claseId: clase.id,
         codigo: clase.codigo,
         nombre: clase.nombre,
-        docente: clase.docente.nombre,
+        docente: clase.docente ? clase.docente.nombre : 'Sin docente asignado',
         promedio: parseFloat(promedio.toFixed(2)),
         porcentajeAsistencia: parseFloat(porcentajeAsistencia.toFixed(2)),
         proyectosEntregados,
