@@ -175,7 +175,7 @@ rutas.post('/validar-pin', [
  *     summary: Restablece la contraseña usando un token válido
  *     tags: [Usuarios]
  *     security:
- *       - bearerAuth: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:

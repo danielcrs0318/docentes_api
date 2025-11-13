@@ -203,10 +203,6 @@ exports.solicitarRestablecimiento = async (req, res) => {
             return res.status(404).json({ error: 'Usuario no encontrado' });
         }
 
-        if (usuario.estado === 'BL') {
-            return res.status(403).json({ error: 'Usuario bloqueado. Contacte al administrador.' });
-        }
-
         const pin = generarPin();
         usuario.pin = pin;
         usuario.pinExpiracion = new Date(Date.now() + 15 * 60000); // 15 minutos
