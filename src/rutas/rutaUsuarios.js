@@ -422,7 +422,7 @@ rutas.get('/imagenes/listar', [
  *       500:
  *         description: Error del servidor
  */
-rutas.post('/imagenes', [
+rutas.post('/imagenes/guardar', [
     validarToken,
     query('id').notEmpty().withMessage('El ID del usuario es obligatorio'),
     query('id').isInt().withMessage('El ID del usuario debe ser un número')
@@ -478,7 +478,7 @@ rutas.post('/imagenes', [
  *       500:
  *         description: Error del servidor
  */
-rutas.put('/imagenes', [
+rutas.put('/imagenes/editar', [
     validarToken,
     query('id').notEmpty().withMessage('El ID de la imagen es obligatorio'),
     query('id').isInt().withMessage('El ID de la imagen debe ser un número')
@@ -519,7 +519,7 @@ rutas.put('/imagenes', [
  *       500:
  *         description: Error del servidor
  */
-rutas.delete('/imagenes', [
+rutas.delete('/imagenes/eliminar', [
     validarToken,
     query('id').notEmpty().withMessage('El ID de la imagen es obligatorio'),
     query('id').isInt().withMessage('El ID de la imagen debe ser un número')
