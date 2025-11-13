@@ -276,9 +276,13 @@ rutas.delete('/eliminar', [
  *       - Desde fila 8 columnas B,C,D: Cuenta, Nombre, Correo de estudiantes
  *       
  *       La clase se crea automáticamente si no existe usando B1 (código) y B2 (nombre).
- *       La sección se crea automáticamente si no existe. El aulaId es opcional.
+ *       La sección se crea automáticamente si no existe.
  *       El periodo se crea automáticamente si B4 y B5 tienen fechas y no existe un periodo con esas fechas.
+ *       
+ *       **IMPORTANTE:** Si se proporciona el nombre de sección (B3), el parámetro `aulaId` es OBLIGATORIO.
  *     tags: [Estudiantes]
+ *     security:
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -287,6 +291,7 @@ rutas.delete('/eliminar', [
  *             type: object
  *             required:
  *               - excel
+ *               - aulaId
  *             properties:
  *               excel:
  *                 type: string
@@ -294,7 +299,13 @@ rutas.delete('/eliminar', [
  *                 description: Archivo Excel (.xlsx o .xls) con los datos de estudiantes
  *               aulaId:
  *                 type: integer
- *                 description: ID del aula para asignar a la sección (opcional, si no se proporciona la sección se crea sin aula)
+ *                 description: ID del aula para asignar a la sección (OBLIGATORIO cuando se crea una sección)
+ *                 example: 1
+ *               creditos:
+ *                 type: integer
+ *                 enum: [3, 4]
+ *                 description: Créditos de la clase (3 o 4). Usado para asignar días de la semana automáticamente
+ *                 example: 4
  *     responses:
  *       201:
  *         description: Estudiantes importados e inscritos exitosamente
