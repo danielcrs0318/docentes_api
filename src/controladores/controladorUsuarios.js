@@ -385,3 +385,134 @@ exports.guardarImagenUsuario = async (req, res) => {
         });
     }
 };
+
+exports.editarImagenUsuario = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No se ha proporcionado ninguna imagen' });
+        }
+
+        const nuevaImagen = req.file.filename;
+        const { id } = req.query;
+
+        if (!id) {
+            return res.status(400).json({ error: 'Se requiere el ID de la imagen' });
+        }
+
+        // Buscar la imagen existente
+        const imagenExistente = await UsuarioImagen.findByPk(id);
+        if (!imagenExistente) {
+            // Si la nueva imagen fue subida, eliminarla
+            const rutaNuevaImagen = path.join(__dirname, '../../public/img/usuarios', nuevaImagen);
+            if (fs.existsSync(rutaNuevaImagen)) {
+                fs.unlinkSync(rutaNuevaImagen);
+            }
+            return res.status(404).json({ error: 'Imagen no encontrada' });
+        }
+
+        // Eliminar la imagen antigua del servidor
+        const rutaImagenAntigua = path.join(__dirname, '../../public/img/usuarios', imagenExistente.imagen);
+        if (fs.existsSync(rutaImagenAntigua)) {
+            fs.unlinkSync(rutaImagenAntigua);
+        }
+
+        // Actualizar la referencia en la base de datos
+        imagenExistente.imagen = nuevaImagen;
+        await imagenExistente.save();
+
+        res.status(200).json({
+            mensaje: 'Imagen actualizada correctamente',
+            datos: {
+                id: imagenExistente.id,
+                imagen: imagenExistente.imagen,
+                ruta: `/img/usuarios/${nuevaImagen}`,
+                usuarioId: imagenExistente.usuarioId
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al editar imagen:', error);
+        res.status(500).json({
+            error: 'Error al editar la imagen',
+            detalles: error.message
+        });
+    }
+};
+
+exports.eliminarImagenUsuario = async (req, res) => {
+    try {
+        const { id } = req.query;
+
+        if (!id) {
+            return res.status(400).json({ error: 'Se requiere el ID de la imagen' });
+        }
+
+        // Buscar la imagen
+        const imagen = await UsuarioImagen.findByPk(id);
+        if (!imagen) {
+            return res.status(404).json({ error: 'Imagen no encontrada' });
+        }
+
+        // Eliminar el archivo físico del servidor
+        const rutaImagen = path.join(__dirname, '../../public/img/usuarios', imagen.imagen);
+        if (fs.existsSync(rutaImagen)) {
+            fs.unlinkSync(rutaImagen);
+        }
+
+        // Eliminar el registro de la base de datos
+        await imagen.destroy();
+
+        res.status(200).json({
+            mensaje: 'Imagen eliminada correctamente'
+        });
+
+    } catch (error) {
+        console.error('Error al eliminar imagen:', error);
+        res.status(500).json({
+            error: 'Error al eliminar la imagen',
+            detalles: error.message
+        });
+    }
+};
+
+exports.listarImagenesUsuario = async (req, res) => {
+    try {
+        const { usuarioId } = req.query;
+
+        if (!usuarioId) {
+            return res.status(400).json({ error: 'Se requiere el ID del usuario' });
+        }
+
+        // Verificar que el usuario existe
+        const usuario = await Usuarios.findByPk(usuarioId);
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // Buscar todas las imágenes del usuario
+        const imagenes = await UsuarioImagen.findAll({
+            where: { usuarioId },
+            attributes: ['id', 'imagen', 'estado', 'createdAt', 'updatedAt']
+        });
+
+        res.status(200).json({
+            mensaje: 'Imágenes recuperadas correctamente',
+            total: imagenes.length,
+            datos: imagenes.map(img => ({
+                id: img.id,
+                imagen: img.imagen,
+                ruta: `/img/usuarios/${img.imagen}`,
+                estado: img.estado,
+                createdAt: img.createdAt,
+                updatedAt: img.updatedAt
+            }))
+        });
+
+    } catch (error) {
+        console.error('Error al listar imágenes:', error);
+        res.status(500).json({
+            error: 'Error al listar las imágenes',
+            detalles: error.message
+        });
+    }
+};

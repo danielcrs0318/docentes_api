@@ -61,6 +61,41 @@ const { validarToken } = require('../configuraciones/passport');
  *         intentos: 0
  *         estado: AC
  *         docenteId: 1
+ *     UsuarioImagen:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: ID autogenerado de la imagen
+ *         imagen:
+ *           type: string
+ *           maxLength: 250
+ *           description: Nombre del archivo de imagen
+ *         estado:
+ *           type: string
+ *           enum: [AC, IN, BL]
+ *           description: Estado de la imagen (Activo, Inactivo o Bloqueado)
+ *           default: AC
+ *         usuarioId:
+ *           type: integer
+ *           description: ID del usuario propietario de la imagen
+ *         ruta:
+ *           type: string
+ *           description: Ruta completa de la imagen en el servidor
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha de creación
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *           description: Fecha de última actualización
+ *       example:
+ *         id: 1
+ *         imagen: "usuario_1234567890.jpg"
+ *         estado: AC
+ *         usuarioId: 1
+ *         ruta: "/img/usuarios/usuario_1234567890.jpg"
  */
 
 /**
@@ -293,8 +328,202 @@ rutas.delete('/eliminar', [
     query('id').notEmpty().withMessage('El id es obligatorio'),
 ], controladorUsuarios.Eliminar);
 
-rutas.post('/imagenes', 
+/**
+ * @swagger
+ * /usuarios/imagenes/listar:
+ *   get:
+ *     summary: Listar todas las imágenes de un usuario
+ *     tags: [Imágenes de Usuario]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: usuarioId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Lista de imágenes recuperada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Imágenes recuperadas correctamente"
+ *                 total:
+ *                   type: integer
+ *                   example: 2
+ *                 datos:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/UsuarioImagen'
+ *       400:
+ *         description: ID de usuario no proporcionado
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
+ */
+rutas.get('/imagenes/listar', [
+    validarToken,
+    query('usuarioId').notEmpty().withMessage('El ID del usuario es obligatorio'),
+    query('usuarioId').isInt().withMessage('El ID del usuario debe ser un número')
+], controladorUsuarios.listarImagenesUsuario);
+
+/**
+ * @swagger
+ * /usuarios/imagenes:
+ *   post:
+ *     summary: Guardar una nueva imagen de usuario
+ *     tags: [Imágenes de Usuario]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - imagen
+ *             properties:
+ *               imagen:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de imagen (jpg, jpeg, png, gif - máx 5MB)
+ *     responses:
+ *       201:
+ *         description: Imagen guardada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Imagen guardada correctamente"
+ *                 datos:
+ *                   $ref: '#/components/schemas/UsuarioImagen'
+ *       400:
+ *         description: No se proporcionó imagen o datos inválidos
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
+ */
+rutas.post('/imagenes', [
+    validarToken,
+    query('id').notEmpty().withMessage('El ID del usuario es obligatorio'),
+    query('id').isInt().withMessage('El ID del usuario debe ser un número')
+],
     controladorUsuarios.validarImagenUsuario, 
-    controladorUsuarios.guardarImagenUsuario);  // <-- Este controlador no existe
+    controladorUsuarios.guardarImagenUsuario);
+
+/**
+ * @swagger
+ * /usuarios/imagenes:
+ *   put:
+ *     summary: Editar una imagen existente de usuario
+ *     tags: [Imágenes de Usuario]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la imagen a editar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - imagen
+ *             properties:
+ *               imagen:
+ *                 type: string
+ *                 format: binary
+ *                 description: Nuevo archivo de imagen (jpg, jpeg, png, gif - máx 5MB)
+ *     responses:
+ *       200:
+ *         description: Imagen actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Imagen actualizada correctamente"
+ *                 datos:
+ *                   $ref: '#/components/schemas/UsuarioImagen'
+ *       400:
+ *         description: No se proporcionó imagen o datos inválidos
+ *       404:
+ *         description: Imagen no encontrada
+ *       500:
+ *         description: Error del servidor
+ */
+rutas.put('/imagenes', [
+    validarToken,
+    query('id').notEmpty().withMessage('El ID de la imagen es obligatorio'),
+    query('id').isInt().withMessage('El ID de la imagen debe ser un número')
+],
+    controladorUsuarios.validarImagenUsuario,
+    controladorUsuarios.editarImagenUsuario);
+
+/**
+ * @swagger
+ * /usuarios/imagenes:
+ *   delete:
+ *     summary: Eliminar una imagen de usuario
+ *     tags: [Imágenes de Usuario]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la imagen a eliminar
+ *     responses:
+ *       200:
+ *         description: Imagen eliminada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Imagen eliminada correctamente"
+ *       400:
+ *         description: ID no proporcionado
+ *       404:
+ *         description: Imagen no encontrada
+ *       500:
+ *         description: Error del servidor
+ */
+rutas.delete('/imagenes', [
+    validarToken,
+    query('id').notEmpty().withMessage('El ID de la imagen es obligatorio'),
+    query('id').isInt().withMessage('El ID de la imagen debe ser un número')
+], controladorUsuarios.eliminarImagenUsuario);
+
 // Exportar las rutas
 module.exports = rutas;
