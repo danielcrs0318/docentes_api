@@ -3,6 +3,7 @@ const { body, query, validationResult } = require('express-validator');
 const controladorEstudiantes = require('../controladores/controladorEstudiantes');
 const { uploadExcel } = require('../configuraciones/multer');
 const { validarToken } = require('../configuraciones/passport');
+
 const rutas = Router();
 
 
