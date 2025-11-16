@@ -1,8 +1,6 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorEvaluaciones = require('../controladores/controladorEvaluaciones');
-const Evaluaciones = require('../modelos/Evaluaciones');
-const EvaluacionesEstudiantes = require('../modelos/EvaluacionesEstudiantes');
 const rutas = Router();
 
 /**
@@ -126,26 +124,89 @@ const rutas = Router();
  * @swagger
  * /evaluaciones/guardar:
  *   post:
- *     summary: Guardar una nueva evaluación
+ *     summary: Crea una evaluación y la asigna a estudiantes (por claseId, seccionId o lista de IDs)
  *     tags: [Evaluaciones]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Evaluacion'
+ *             type: object
+ *             required:
+ *               - titulo
+ *               - fechaInicio
+ *               - fechaCierre
+ *               - parcialId
+ *               - periodoId
+ *               - estado
+ *               - notaMaxima
+ *               - estructura
+ *             properties:
+ *               titulo:
+ *                 type: string
+ *                 example: Examen Unidad 1
+ *               fechaInicio:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-02-01T08:00:00Z"
+ *               fechaCierre:
+ *                 type: string
+ *                 format: date-time
+ *                 example: "2025-02-05T23:59:00Z"
+ *               claseId:
+ *                 type: integer
+ *                 nullable: true
+ *                 example: 12
+ *               seccionId:
+ *                 type: integer
+ *                 nullable: true
+ *                 example: null
+ *               estudiantes:
+ *                 type: array
+ *                 description: Lista de IDs de estudiantes (si no se usa claseId o seccionId)
+ *                 items:
+ *                   type: integer
+ *                 example: [10, 11]
+ *               parcialId:
+ *                 type: integer
+ *                 example: 1
+ *               periodoId:
+ *                 type: integer
+ *                 example: 1
+ *               estado:
+ *                 type: string
+ *                 enum: [ACTIVO, INACTIVO]
+ *                 example: ACTIVO
+ *               notaMaxima:
+ *                 type: number
+ *                 format: float
+ *                 example: 20
+ *               estructura:
+ *                 type: object
+ *                 description: Estructura de la evaluación
+ *                 example:
+ *                   instrucciones: "Responder todo"
+ *                   preguntas: 10
  *     responses:
  *       201:
- *         description: Evaluación creada exitosamente
+ *         description: Evaluación creada exitosamente y asignada
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Evaluacion'
+ *               type: object
+ *               properties:
+ *                 evaluacion:
+ *                   type: object
+ *                 asignadas:
+ *                   type: integer
+ *                 mensaje:
+ *                   type: string
  *       400:
- *         description: Datos inválidos en la solicitud
+ *         description: Error en los datos enviados
  *       500:
- *         description: Error del servidor
+ *         description: Error interno del servidor
  */
+
 
 /**
  * @swagger
