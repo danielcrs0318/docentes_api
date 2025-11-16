@@ -380,7 +380,7 @@ const rutas = Router();
  * @swagger
  * /evaluaciones/asignar:
  *   post:
- *     summary: Asigna una evaluación existente a estudiantes (por lista, sección o clase)
+ *     summary: Asigna una evaluación existente a estudiantes mediante lista, sección o clase
  *     tags: [Evaluaciones]
  *     parameters:
  *       - in: query
@@ -388,16 +388,46 @@ const rutas = Router();
  *         required: true
  *         schema:
  *           type: integer
+ *         description: ID de la evaluación que se desea asignar
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/AsignacionRequest'
+ *             type: object
+ *             properties:
+ *               estudiantes:
+ *                 type: array
+ *                 description: Lista opcional de IDs de estudiantes a los que se asignará la evaluación
+ *                 items:
+ *                   type: integer
+ *               seccionId:
+ *                 type: integer
+ *                 description: ID opcional de la sección para asignar la evaluación a todos los estudiantes de esa sección
+ *               claseId:
+ *                 type: integer
+ *                 description: ID opcional de la clase para asignar la evaluación a todos los estudiantes de esa clase
+ *             example:
+ *               estudiantes: [1, 2, 3]
+ *               seccionId: 5
+ *               claseId: 10
  *     responses:
  *       200:
- *         description: Asignación completada
+ *         description: Asignación completada correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Evaluación asignada correctamente"
+ *       400:
+ *         description: Error en los datos enviados
+ *       500:
+ *         description: Error interno del servidor
  */
+
 
 // Listar evaluaciones (opcionalmente filtrar por claseId, parcialId, periodoId)
 rutas.get('/listar', controladorEvaluaciones.Listar);
