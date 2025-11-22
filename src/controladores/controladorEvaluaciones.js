@@ -1,6 +1,7 @@
 const Evaluaciones = require('../modelos/Evaluaciones');
 const EvaluacionesEstudiantes = require('../modelos/EvaluacionesEstudiantes');
 const Estudiantes = require('../modelos/Estudiantes');
+const EstudiantesClases = require('../modelos/EstudiantesClases');
 const Parciales = require('../modelos/Parciales');
 const Periodos = require('../modelos/Periodos');
 const Clases = require('../modelos/Clases');
@@ -38,32 +39,126 @@ exports.Guardar = async (req, res) => {
     const periodo = await Periodos.findByPk(periodoId);
     if (!periodo) return res.status(400).json({ msj: 'Periodo no encontrado' });
 
-    if (!claseId && !seccionId && (!estudiantesBody || estudiantesBody.length === 0)) {
-      return res.status(400).json({ msj: 'Debe especificar claseId, seccionId o estudiantes' });
-    }
-
     const evaluacion = await Evaluaciones.create({
       titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId: claseId || null, parcialId, periodoId
     });
+
+    // Si no se proporcionan estudiantes, clase o sección, solo crear la evaluación
+    if (!claseId && !seccionId && (!estudiantesBody || estudiantesBody.length === 0)) {
+      return res.status(201).json({ 
+        evaluacion, 
+        asignadas: 0, 
+        mensaje: 'Evaluación creada exitosamente. Puede asignar estudiantes posteriormente usando el endpoint /asignar' 
+      });
+    }
 
     // 🔹 Obtener información de la clase (si existe)
     let clase = null;
     if (claseId) {
       clase = await Clases.findByPk(claseId);
+      if (!clase) {
+        await evaluacion.destroy();
+        return res.status(400).json({ msj: 'Clase no encontrada' });
+      }
     }
 
-    let estudiantes = [];
+    // 🔹 Validar sección si se proporciona
+    if (seccionId) {
+      const seccion = await Secciones.findByPk(seccionId);
+      if (!seccion) {
+        await evaluacion.destroy();
+        return res.status(400).json({ msj: 'Sección no encontrada' });
+      }
+    }
+
+    // 🔹 Obtener estudiantes usando EstudiantesClases
+    let estudiantesIds = [];
     if (Array.isArray(estudiantesBody) && estudiantesBody.length > 0) {
-      estudiantes = await Estudiantes.findAll({ where: { id: estudiantesBody } });
-    } else if (seccionId) {
-      estudiantes = await Estudiantes.findAll({ where: { seccionId } });
+      // Validar que los estudiantes proporcionados estén inscritos en la clase y sección
+      if (claseId && seccionId) {
+        // Verificar inscripción con clase y sección
+        const inscripciones = await EstudiantesClases.findAll({
+          where: { estudianteId: estudiantesBody, claseId, seccionId },
+          attributes: ['estudianteId']
+        });
+        const inscritosIds = inscripciones.map(i => i.estudianteId);
+        const noInscritos = estudiantesBody.filter(id => !inscritosIds.includes(id));
+        
+        if (noInscritos.length > 0) {
+          await evaluacion.destroy();
+          return res.status(400).json({ 
+            msj: 'Algunos estudiantes no están inscritos en esta clase y sección', 
+            estudiantesNoInscritos: noInscritos 
+          });
+        }
+        estudiantesIds = inscritosIds;
+      } else if (claseId) {
+        // Verificar inscripción solo con clase
+        const inscripciones = await EstudiantesClases.findAll({
+          where: { estudianteId: estudiantesBody, claseId },
+          attributes: ['estudianteId']
+        });
+        const inscritosIds = inscripciones.map(i => i.estudianteId);
+        const noInscritos = estudiantesBody.filter(id => !inscritosIds.includes(id));
+        
+        if (noInscritos.length > 0) {
+          await evaluacion.destroy();
+          return res.status(400).json({ 
+            msj: 'Algunos estudiantes no están inscritos en esta clase', 
+            estudiantesNoInscritos: noInscritos 
+          });
+        }
+        estudiantesIds = inscritosIds;
+      } else if (seccionId) {
+        // Verificar inscripción solo con sección
+        const inscripciones = await EstudiantesClases.findAll({
+          where: { estudianteId: estudiantesBody, seccionId },
+          attributes: ['estudianteId']
+        });
+        const inscritosIds = inscripciones.map(i => i.estudianteId);
+        const noInscritos = estudiantesBody.filter(id => !inscritosIds.includes(id));
+        
+        if (noInscritos.length > 0) {
+          await evaluacion.destroy();
+          return res.status(400).json({ 
+            msj: 'Algunos estudiantes no están inscritos en esta sección', 
+            estudiantesNoInscritos: noInscritos 
+          });
+        }
+        estudiantesIds = inscritosIds;
+      } else {
+        // Sin clase ni sección, usar los IDs proporcionados directamente
+        estudiantesIds = estudiantesBody;
+      }
+    } else if (seccionId && claseId) {
+      // Filtrar por clase y sección
+      const registros = await EstudiantesClases.findAll({ 
+        where: { claseId, seccionId },
+        attributes: ['estudianteId']
+      });
+      estudiantesIds = registros.map(r => r.estudianteId);
     } else if (claseId) {
-      estudiantes = await Estudiantes.findAll({ where: { claseId } });
+      // Solo filtrar por clase
+      const registros = await EstudiantesClases.findAll({ 
+        where: { claseId },
+        attributes: ['estudianteId']
+      });
+      estudiantesIds = registros.map(r => r.estudianteId);
+    } else if (seccionId) {
+      // Solo filtrar por sección
+      const registros = await EstudiantesClases.findAll({ 
+        where: { seccionId },
+        attributes: ['estudianteId']
+      });
+      estudiantesIds = registros.map(r => r.estudianteId);
     }
 
-    if (estudiantes.length === 0) {
+    if (estudiantesIds.length === 0) {
       return res.status(201).json({ evaluacion, asignadas: 0, mensaje: 'Evaluación creada pero sin estudiantes asignados' });
     }
+
+    // Obtener datos completos de estudiantes
+    const estudiantes = await Estudiantes.findAll({ where: { id: estudiantesIds } });
 
     const asignaciones = estudiantes.map(e => ({ evaluacionId: evaluacion.id, estudianteId: e.id }));
     await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
@@ -209,12 +304,25 @@ exports.Eliminar = async (req, res) => {
 };
 
 exports.RegistrarNota = async (req, res) => {
-  const { evaluacionId, estudianteId } = req.query;
+  const { evaluacionId, estudianteId, claseId, seccionId } = req.query;
   const { nota } = req.body;
 
   try {
+    // Validar que claseId y seccionId estén presentes
+    if (!claseId || !seccionId) {
+      return res.status(400).json({ msj: 'claseId y seccionId son requeridos' });
+    }
+
     const evaluacion = await Evaluaciones.findByPk(evaluacionId);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    // Verificar que el estudiante esté inscrito en la clase y sección
+    const inscripcion = await EstudiantesClases.findOne({
+      where: { estudianteId, claseId, seccionId }
+    });
+    if (!inscripcion) {
+      return res.status(400).json({ msj: 'El estudiante no está inscrito en esta clase y sección' });
+    }
 
     // 🔹 Obtener nombre de la clase
     let claseNombre = 'Sin clase asignada';
@@ -250,7 +358,7 @@ exports.RegistrarNota = async (req, res) => {
         <ul>
           <li><strong>Nota obtenida:</strong> ${valor}</li>
           <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-          <li><strong>Total del parcial:</strong> ${total}</li>
+          <li><strong>Total del parcial:</strong> ${total.final}</li>
         </ul>`;
       enviarCorreo(estudiante.correo, asunto, contenido).catch(err =>
         console.error(`Error al enviar correo a ${estudiante.correo}:`, err.message)
@@ -379,39 +487,104 @@ exports.Asignar = async (req, res) => {
     const evaluacion = await Evaluaciones.findByPk(evaluacionId);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
 
-    if (!claseId && !seccionId && (!estudiantesBody || estudiantesBody.length === 0)) {
-      return res.status(400).json({ msj: 'Debe especificar al menos uno: claseId, seccionId o estudiantes (array de IDs)' });
+    // Validar que se proporcione clase Y sección, o lista de estudiantes
+    if (!claseId || !seccionId) {
+      if (!estudiantesBody || estudiantesBody.length === 0) {
+        return res.status(400).json({ msj: 'Debe especificar claseId Y seccionId, o proporcionar un array de estudiantes' });
+      }
     }
 
-    let estudiantes = [];
-    if (Array.isArray(estudiantesBody) && estudiantesBody.length > 0) {
-      estudiantes = await Estudiantes.findAll({ where: { id: estudiantesBody } });
-    } else if (seccionId) {
+    // 🔹 Validar que la clase y sección existan
+    let clase = null;
+    if (claseId) {
+      clase = await Clases.findByPk(claseId);
+      if (!clase) return res.status(400).json({ msj: 'Clase no encontrada' });
+    }
+    if (seccionId) {
       const seccion = await Secciones.findByPk(seccionId);
       if (!seccion) return res.status(400).json({ msj: 'Sección no encontrada' });
-      estudiantes = await Estudiantes.findAll({ where: { seccionId } });
-    } else if (claseId) {
-      const clase = await Clases.findByPk(claseId);
-      if (!clase) return res.status(400).json({ msj: 'Clase no encontrada' });
-      estudiantes = await Estudiantes.findAll({ where: { claseId } });
     }
 
-    if (!estudiantes || estudiantes.length === 0) {
+    // 🔹 Obtener estudiantes usando EstudiantesClases
+    let estudiantesIds = [];
+    if (Array.isArray(estudiantesBody) && estudiantesBody.length > 0) {
+      // Validar que los estudiantes proporcionados estén inscritos
+      if (claseId && seccionId) {
+        const inscripciones = await EstudiantesClases.findAll({
+          where: { estudianteId: estudiantesBody, claseId, seccionId },
+          attributes: ['estudianteId']
+        });
+        const inscritosIds = inscripciones.map(i => i.estudianteId);
+        const noInscritos = estudiantesBody.filter(id => !inscritosIds.includes(id));
+        
+        if (noInscritos.length > 0) {
+          return res.status(400).json({ 
+            msj: 'Algunos estudiantes no están inscritos en esta clase y sección', 
+            estudiantesNoInscritos: noInscritos 
+          });
+        }
+        estudiantesIds = inscritosIds;
+      } else {
+        // Si no hay clase ni sección, usar los IDs proporcionados
+        estudiantesIds = estudiantesBody;
+      }
+    } else if (claseId && seccionId) {
+      // Filtrar por clase y sección
+      const registros = await EstudiantesClases.findAll({ 
+        where: { claseId, seccionId },
+        attributes: ['estudianteId']
+      });
+      estudiantesIds = registros.map(r => r.estudianteId);
+    }
+
+    if (estudiantesIds.length === 0) {
       return res.status(200).json({ msj: 'No se encontraron estudiantes para asignar', asignadas: 0 });
     }
 
-    const asignaciones = estudiantes.map(e => ({ evaluacionId: evaluacion.id, estudianteId: e.id }));
+    // Obtener datos completos de estudiantes
+    const estudiantes = await Estudiantes.findAll({ where: { id: estudiantesIds } });
+
+    const asignaciones = estudiantesIds.map(id => ({ evaluacionId: evaluacion.id, estudianteId: id }));
     try {
       await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
     } catch (bulkErr) {
-      const estudianteIds = asignaciones.map(a => a.estudianteId);
-      const existentes = await EvaluacionesEstudiantes.findAll({ where: { evaluacionId: evaluacion.id, estudianteId: estudianteIds } });
+      const existentes = await EvaluacionesEstudiantes.findAll({ 
+        where: { 
+          evaluacionId: evaluacion.id, 
+          estudianteId: estudiantesIds 
+        } 
+      });
       const existentesIds = existentes.map(e => e.estudianteId);
       const aInsertar = asignaciones.filter(a => !existentesIds.includes(a.estudianteId));
       if (aInsertar.length > 0) await EvaluacionesEstudiantes.bulkCreate(aInsertar);
     }
 
-    res.json({ msj: 'Asignación completada', asignadas: asignaciones.length });
+    // ---- Envío de correos en paralelo (no bloqueante)
+    const promesasCorreos = estudiantes
+      .filter(e => e.correo)
+      .map(e => {
+        const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
+        const contenido = `
+          <h3>Hola ${e.nombre || 'estudiante'},</h3>
+          <p>Se te ha asignado una nueva evaluación:</p>
+          <ul>
+            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
+            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
+            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
+            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
+            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
+          </ul>
+          <p>Por favor revisa la plataforma para más detalles.</p>
+        `;
+        return enviarCorreo(e.correo, asunto, contenido);
+      });
+
+    Promise.allSettled(promesasCorreos).then(results => {
+      const fallos = results.filter(r => r.status === 'rejected');
+      if (fallos.length) console.warn(` Fallaron ${fallos.length} envíos de correo`);
+    });
+
+    res.json({ msj: 'Asignación completada (envío de correos en proceso)', asignadas: asignaciones.length });
   } catch (err) {
     res.status(500).json({ msj: 'Error al asignar evaluación', error: err.message || err });
   }
