@@ -1,5 +1,7 @@
 const Proyectos = require('../modelos/Proyectos');
 const Estudiantes = require('../modelos/Estudiantes');
+const EstudiantesClases = require('../modelos/EstudiantesClases');
+const ProyectoEstudiantes = require('../modelos/ProyectoEstudiantes');
 const { validationResult } = require('express-validator');
 
 /* Listar todos los proyectos con estudiantes asignados */
@@ -131,42 +133,130 @@ exports.AsignarProyecto = async (req, res) => {
   }
 };
 
-/* Asignación aleatoria (body: proyectoId, cantidad) */
+/* Asignación aleatoria por clase: asigna aleatoriamente estudiantes a proyectos
+   Requisitos:
+   - Si se envía `proyectoId`, se valida y se usa su `claseId`.
+   - Si no, se requiere `claseId` en body.
+   - Cada estudiante se asigna a un único proyecto (1:1 por esta operación).
+   - Si hay más estudiantes que proyectos, los sobrantes no se asignan.
+   - No se crean asignaciones ya existentes.
+   Respuesta: { totalProyectos, totalEstudiantes, asignaciones: [{ proyectoId, estudianteId }] }
+*/
 exports.AsignarAleatorio = async (req, res) => {
-  const { proyectoId, cantidad } = req.body;
-  if (!proyectoId) return res.status(400).json({ error: 'proyectoId requerido' });
+  const { proyectoId, claseId, maxPorProyecto } = req.body;
 
   try {
-    const proyecto = await Proyectos.findByPk(proyectoId);
-    if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
-
-    const where = proyecto.claseId ? { claseId: proyecto.claseId } : {};
-    const pool = await Estudiantes.findAll({ where, attributes: ['id'] });
-    if (!pool.length) return res.status(400).json({ error: 'No hay estudiantes disponibles' });
-
-    const ids = pool.map(p => p.id);
-    const n = cantidad ? Math.min(parseInt(cantidad,10), ids.length) : 1;
-    const seleccion = [];
-    while (seleccion.length < n) {
-      const idx = Math.floor(Math.random() * ids.length);
-      const [id] = ids.splice(idx, 1);
-      seleccion.push(id);
+    // determinar claseId objetivo
+    let targetClaseId = claseId;
+    if (proyectoId) {
+      const proyecto = await Proyectos.findByPk(proyectoId);
+      if (!proyecto) return res.status(404).json({ error: 'proyectoId no encontrado' });
+      if (!proyecto.claseId) return res.status(400).json({ error: 'El proyecto no tiene asociada una clase (claseId)' });
+      targetClaseId = proyecto.claseId;
     }
 
-    const asignados = [];
-    for (const estId of seleccion) {
-      const est = await Estudiantes.findByPk(estId);
-      const existe = await proyecto.hasEstudiante(est);
-      if (!existe) {
-        await proyecto.addEstudiante(est);
-        asignados.push(estId);
+    if (!targetClaseId) return res.status(400).json({ error: 'Se requiere proyectoId o claseId' });
+
+    // obtener proyectos y estudiantes de la misma clase
+    const proyectos = await Proyectos.findAll({ where: { claseId: targetClaseId } });
+
+    // Los estudiantes están relacionados a clases a través de la tabla EstudiantesClases
+    const inscripciones = await EstudiantesClases.findAll({
+      where: { claseId: targetClaseId },
+      include: [{ model: Estudiantes, as: 'estudiante', attributes: ['id', 'nombre', 'correo'] }]
+    });
+    const estudiantes = inscripciones.map(i => i.estudiante).filter(Boolean);
+
+      // validar y normalizar maxPorProyecto
+      const maxPerProject = (typeof maxPorProyecto !== 'undefined') ? parseInt(maxPorProyecto, 10) : 1;
+      if (Number.isNaN(maxPerProject) || maxPerProject < 1) {
+        return res.status(400).json({ error: 'maxPorProyecto debe ser entero mayor o igual a 1' });
       }
-    }
 
-    res.json({ message: 'Asignación aleatoria completada', asignados });
+    if (!proyectos || proyectos.length === 0) return res.status(400).json({ error: 'No hay proyectos en la clase indicada' });
+    if (!estudiantes || estudiantes.length === 0) return res.status(400).json({ error: 'No hay estudiantes en la clase indicada' });
+
+    // helper: Fisher-Yates shuffle
+    const shuffleInPlace = (array) => {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    };
+
+    const proyectosShuffled = proyectos.slice();
+    const estudiantesShuffled = estudiantes.slice();
+    shuffleInPlace(proyectosShuffled);
+    shuffleInPlace(estudiantesShuffled);
+
+    // usar una transacción para agrupación segura
+    const sequelize = Proyectos.sequelize || (Estudiantes.sequelize);
+    const transaction = sequelize ? await sequelize.transaction() : null;
+
+    try {
+      const asignaciones = [];
+
+      // cargar asignaciones existentes para los proyectos de la clase
+      const proyectoIds = proyectos.map(p => p.id);
+      const existing = await ProyectoEstudiantes.findAll({ where: { proyectoId: proyectoIds } });
+
+      // map de conteo por proyecto y set de estudiantes ya asignados en estos proyectos
+      const assignedCountByProject = {};
+      const estudianteYaAsignadoSet = new Set();
+      for (const row of existing) {
+        assignedCountByProject[row.proyectoId] = (assignedCountByProject[row.proyectoId] || 0) + 1;
+        estudianteYaAsignadoSet.add(row.estudianteId);
+      }
+
+      // inicializar counts para proyectos que no aparecen en existing
+      for (const proyecto of proyectos) {
+        if (!assignedCountByProject[proyecto.id]) assignedCountByProject[proyecto.id] = 0;
+      }
+
+      // asignar: por cada estudiante intentar encontrar un proyecto con capacidad (< maxPerProject)
+      const proyectosCapacidad = proyectosShuffled.map(p => ({ id: p.id, nombre: p.nombre }));
+
+      for (const estudiante of estudiantesShuffled) {
+        // saltar si el estudiante ya está asignado en alguno de los proyectos de la clase
+        if (estudianteYaAsignadoSet.has(estudiante.id)) continue;
+
+        let asignado = false;
+        for (const proyecto of proyectosCapacidad) {
+          const currentCount = assignedCountByProject[proyecto.id] || 0;
+          if (currentCount >= maxPerProject) continue;
+
+          // realizar la asignación
+          await ProyectoEstudiantes.create({ proyectoId: proyecto.id, estudianteId: estudiante.id }, transaction ? { transaction } : undefined);
+          assignedCountByProject[proyecto.id] = currentCount + 1;
+          estudianteYaAsignadoSet.add(estudiante.id);
+          asignaciones.push({ proyectoId: proyecto.id, estudianteId: estudiante.id, estudianteNombre: estudiante.nombre });
+          asignado = true;
+          break;
+        }
+
+        // si no hay proyectos con capacidad, terminamos
+        if (!asignado) {
+          const todosLlenos = proyectosCapacidad.every(p => (assignedCountByProject[p.id] || 0) >= maxPerProject);
+          if (todosLlenos) break;
+        }
+      }
+
+      if (transaction) await transaction.commit();
+
+      return res.json({
+        totalProyectos: proyectos.length,
+        totalEstudiantes: estudiantes.length,
+        maxPorProyecto: maxPerProject,
+        asignaciones
+      });
+    } catch (innerErr) {
+      if (transaction) await transaction.rollback();
+      console.error('Error durante la asignación en transacción:', innerErr);
+      return res.status(500).json({ error: 'Error al realizar asignaciones' });
+    }
   } catch (error) {
-    console.error('Error asignar aleatorio:', error);
-    res.status(500).json({ error: 'Error en asignación aleatoria' });
+    console.error('Error asignar aleatorio por clase:', error);
+    return res.status(500).json({ error: 'Error en asignación aleatoria por clase' });
   }
 };
 

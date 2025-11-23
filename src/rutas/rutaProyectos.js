@@ -243,12 +243,12 @@ rutas.post('/asignar', [
   body('estudiantes').isArray({ min: 1 }).withMessage('estudiantes debe tener al menos 1 id')
 ], controladorProyectos.AsignarProyecto);
 
-/* Asignar aleatorio */
+/* Asignar aleatorio por clase */
 /**
  * @swagger
  * /api/proyectos/asignar-aleatorio:
  *   post:
- *     summary: Asignar aleatoriamente estudiantes a un proyecto
+ *     summary: Asignar aleatoriamente estudiantes a proyectos de una misma clase
  *     tags: [Proyectos]
  *     requestBody:
  *       required: true
@@ -256,31 +256,68 @@ rutas.post('/asignar', [
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - proyectoId
+ *             description: Proporcione `proyectoId` (opcional) o `claseId` (opcional). Al menos uno es requerido.
+ *             oneOf:
+ *               - required: [proyectoId]
+ *               - required: [claseId]
  *             properties:
  *               proyectoId:
  *                 type: integer
- *                 description: ID del proyecto
+ *                 description: ID del proyecto cuyo `claseId` será usado para la operación (opcional)
  *                 example: 1
- *               cantidad:
+ *               claseId:
  *                 type: integer
- *                 minimum: 1
- *                 description: Cantidad de estudiantes a asignar
- *                 example: 5
+ *                 description: ID de la clase cuyos proyectos y estudiantes serán usados (opcional)
+ *                 example: 3
  *     responses:
  *       200:
- *         description: Estudiantes asignados exitosamente
+ *         description: Asignaciones realizadas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalProyectos:
+ *                   type: integer
+ *                   description: Número total de proyectos en la clase
+ *                   example: 5
+ *                 totalEstudiantes:
+ *                   type: integer
+ *                   description: Número total de estudiantes en la clase
+ *                   example: 12
+ *                 asignaciones:
+ *                   type: array
+ *                   description: Lista de asignaciones realizadas (proyectoId, estudianteId)
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       proyectoId:
+ *                         type: integer
+ *                         example: 2
+ *                       estudianteId:
+ *                         type: integer
+ *                         example: 45
  *       400:
- *         description: Error en los datos proporcionados
+ *         description: Entrada inválida o no hay proyectos/estudiantes en la clase
  *       404:
- *         description: Proyecto no encontrado o no hay suficientes estudiantes disponibles
+ *         description: `proyectoId` no encontrado (si se envió)
  */
 
-rutas.post('/asignar-aleatorio', [
-  body('proyectoId').notEmpty().isInt(),
-  body('cantidad').optional().isInt({ min: 1 })
-], controladorProyectos.AsignarAleatorio);
+rutas.post(
+  '/asignar-aleatorio',
+  [
+    body('proyectoId').optional().isInt().withMessage('proyectoId debe ser entero'),
+    body('claseId').optional().isInt().withMessage('claseId debe ser entero'),
+    body('maxPorProyecto').optional().isInt({ min: 1 }).withMessage('maxPorProyecto debe ser entero >= 1'),
+    body().custom(body => {
+      if (!body.proyectoId && !body.claseId) {
+        throw new Error('Se requiere proyectoId o claseId');
+      }
+      return true;
+    })
+  ],
+  controladorProyectos.AsignarAleatorio
+);
 
 /* Listar por estudiante */
 rutas.get('/por-estudiante', [
