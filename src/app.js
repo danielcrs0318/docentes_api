@@ -63,6 +63,9 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloEvaluaciones, { foreignKey: 'claseId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
+  modeloSecciones.hasMany(modeloEvaluaciones, { foreignKey: 'seccionId', as: 'evaluaciones' });
+  modeloEvaluaciones.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
+
   modeloParciales.hasMany(modeloEvaluaciones, { foreignKey: 'parcialId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
 
