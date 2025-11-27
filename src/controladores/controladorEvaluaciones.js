@@ -32,7 +32,7 @@ exports.Guardar = async (req, res) => {
   }
 
   try {
-    const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId } = req.body;
+    const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId, tipo, peso, estado } = req.body;
 
     const parcial = await Parciales.findByPk(parcialId);
     if (!parcial) return res.status(400).json({ msj: 'Parcial no encontrado' });
@@ -40,7 +40,17 @@ exports.Guardar = async (req, res) => {
     if (!periodo) return res.status(400).json({ msj: 'Periodo no encontrado' });
 
     const evaluacion = await Evaluaciones.create({
-      titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId: claseId || null, parcialId, periodoId
+      titulo, 
+      notaMaxima, 
+      fechaInicio, 
+      fechaCierre, 
+      estructura, 
+      claseId: claseId || null, 
+      parcialId, 
+      periodoId,
+      tipo: tipo || 'NORMAL',
+      peso: peso || 1.0,
+      estado: estado || 'ACTIVO'
     });
 
     // Si no se proporcionan estudiantes, clase o sección, solo crear la evaluación

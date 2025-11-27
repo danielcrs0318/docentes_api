@@ -8,7 +8,7 @@ const { Op } = require('sequelize');
 exports.ListarSecciones = async (req, res) => {
     try {
         const secciones = await Secciones.findAll({
-            attributes: ['id', 'nombre'],
+            attributes: ['id', 'nombre', 'claseId', 'aulaId'],
             include: [
                 {
                     model: Aulas,

@@ -23,9 +23,9 @@ const Evaluaciones = db.define(
             allowNull: false,
             defaultValue: 1.0
         },
-        // tipo de evaluación: NORMAL o REPOSICION
+        // tipo de evaluación: NORMAL, REPOSICION o EXAMEN
         tipo: {
-            type: DataTypes.ENUM('NORMAL', 'REPOSICION'),
+            type: DataTypes.ENUM('NORMAL', 'REPOSICION', 'EXAMEN'),
             allowNull: false,
             defaultValue: 'NORMAL'
         },
@@ -49,7 +49,7 @@ const Evaluaciones = db.define(
         },
         claseId: {
             type: DataTypes.INTEGER,
-            allowNull: false,
+            allowNull: true, // Opcional para permitir evaluaciones sin asignar a clase
             references: {
                 model: 'Clases',
                 key: 'id',
