@@ -18,10 +18,27 @@ exports.Listar = async (req, res) => {
   if (periodoId) where.periodoId = periodoId;
 
   try {
-    const lista = await Evaluaciones.findAll({ where });
+    const lista = await Evaluaciones.findAll({ 
+      where,
+      include: [
+        {
+          model: Clases,
+          as: 'clase',
+          attributes: ['id', 'codigo', 'nombre'],
+          required: false
+        },
+        {
+          model: Secciones,
+          as: 'seccion',
+          attributes: ['id', 'nombre'],
+          required: false
+        }
+      ]
+    });
     res.json(lista);
   } catch (err) {
-    res.status(500).json({ msj: 'Error al listar evaluaciones', error: err });
+    console.error('Error al listar evaluaciones:', err);
+    res.status(500).json({ msj: 'Error al listar evaluaciones', error: err.message });
   }
 };
 
@@ -45,7 +62,8 @@ exports.Guardar = async (req, res) => {
       fechaInicio, 
       fechaCierre, 
       estructura, 
-      claseId: claseId || null, 
+      claseId: claseId || null,
+      seccionId: seccionId || null,
       parcialId, 
       periodoId,
       tipo: tipo || 'NORMAL',

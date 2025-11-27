@@ -55,6 +55,14 @@ const Evaluaciones = db.define(
                 key: 'id',
             },
         },
+        seccionId: {
+            type: DataTypes.INTEGER,
+            allowNull: true, // Opcional
+            references: {
+                model: 'Secciones',
+                key: 'id',
+            },
+        },
         parcialId: {
             type: DataTypes.INTEGER,
             allowNull: false,
