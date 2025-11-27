@@ -23,6 +23,7 @@ const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
+const path = require('path');
 
 const app = express();
 
@@ -30,6 +31,9 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Servir archivos estáticos desde la carpeta public
+app.use('/img', express.static(path.join(__dirname, '../public/img')));
 
 db.authenticate().then(async (data) => {
   console.log('Base de datos conectada');
@@ -141,8 +145,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloClases.sync({ alter: true }).then((data) => {
-    console.log("Tabla Clases sincronizada (alter:true) con un Modelo exitosamente");
+  await modeloClases.sync().then((data) => {
+    console.log("Tabla Clases creada con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -159,8 +163,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloEstudiantes.sync({ alter: true }).then((data) => {
-    console.log("Tabla Estudiantes sincronizada (alter:true) con un Modelo exitosamente");
+  await modeloEstudiantes.sync().then((data) => {
+    console.log("Tabla Estudiantes creada con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -244,7 +248,7 @@ function mountServerAndRoutes() {
   });
 
   // configuramos el puerto
-  app.set('port', process.env.PORT || 3001);
+  app.set('port', process.env.PORT || 3002);
   app.listen(app.get('port'), () => {
     console.log('Servidor corriendo en el puerto ' + app.get('port'));
   });
