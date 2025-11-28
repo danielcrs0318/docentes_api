@@ -238,7 +238,7 @@ function mountServerAndRoutes() {
   });
 
   // configuramos el puerto
-  app.set('port', process.env.PORT || 3001);
+  app.set('port', process.env.PORT || 3002);
   app.listen(app.get('port'), () => {
     console.log('Servidor corriendo en el puerto ' + app.get('port'));
   });
