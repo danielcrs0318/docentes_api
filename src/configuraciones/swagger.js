@@ -2,7 +2,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const path = require('path');
 
 // Usa el puerto de entorno o 3001 por defecto
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 const options = {
     definition: {

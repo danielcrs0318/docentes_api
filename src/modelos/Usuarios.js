@@ -1,7 +1,6 @@
 const db = require('../configuraciones/db');
 const { DataTypes} = require('sequelize');
 const moment = require('moment');
-const modeloDocentes = require('./Docentes');
 
 const Usuario = db.define(
     'usuario',
@@ -12,14 +11,36 @@ const Usuario = db.define(
         pinExpiracion: { type: DataTypes.DATE, allowNull: true },
         intentos: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
         contrasena: { type: DataTypes.STRING(250), allowNull: false },
-        estado:{ type: DataTypes.ENUM('AC', 'IN', 'BL'), allowNull: true, defaultValue: 'AC' }
+        estado: { type: DataTypes.ENUM('AC', 'IN', 'BL'), allowNull: true, defaultValue: 'AC' },
+        rolId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Roles',
+                key: 'id'
+            }
+        },
+        docenteId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Docentes',
+                key: 'id'
+            }
+        },
+        estudianteId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Estudiantes',
+                key: 'id'
+            }
+        }
     },
     {
         tableName: 'usuarios'
     }
 );
 
-modeloDocentes.hasMany(Usuario, { foreignKey: 'docenteId' });
-Usuario.belongsTo(modeloDocentes, { foreignKey: 'docenteId' });
-
+// Las relaciones se definirán en app.js
 module.exports = Usuario;

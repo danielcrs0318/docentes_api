@@ -20,6 +20,7 @@ const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
+const modeloRoles = require('./modelos/Roles');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -121,11 +122,30 @@ db.authenticate().then(async (data) => {
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
+  // Relaciones de Roles con Usuarios
+  modeloRoles.hasMany(modeloUsuarios, { foreignKey: 'rolId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloRoles, { foreignKey: 'rolId', as: 'rol' });
+
+  // Relaciones de Usuarios con Docentes y Estudiantes
+  modeloDocentes.hasMany(modeloUsuarios, { foreignKey: 'docenteId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+
+  modeloEstudiantes.hasMany(modeloUsuarios, { foreignKey: 'estudianteId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
+
   // Relaciones de Usuario e Imágenes
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 
   // Sincronizar modelos con la base de datos (orden respetando FKs)
+  
+  // 1. Sincronizar Roles primero (no tiene dependencias)
+  await modeloRoles.sync({ alter: true }).then((data) => {
+    console.log("Tabla Roles sincronizada (alter:true) exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   await modeloPeriodos.sync({ alter: true }).then((data) => {
     console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {

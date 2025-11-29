@@ -2,6 +2,8 @@ const { validationResult } = require('express-validator');
 const Usuarios = require('../modelos/Usuarios');
 const UsuarioImagen = require('../modelos/UsuarioImagenes');
 const Docente = require('../modelos/Docentes');
+const Estudiantes = require('../modelos/Estudiantes');
+const Roles = require('../modelos/Roles');
 const argon2 = require('argon2');
 const { Op } = require('sequelize');
 const { enviarCorreo } = require('../configuraciones/correo');
@@ -40,13 +42,52 @@ exports.insertar = async (req, res) => {
     }
 
     try {
-        const { docenteId, contrasena } = req.body;
+        const { docenteId, estudianteId, contrasena, rolId } = req.body;
+        let rolAsignado = rolId;
 
-        // Validar si el docente existe antes de crear el usuario
-        const docenteExiste = await Docente.findByPk(docenteId);
-        if (!docenteExiste) {
-            return res.status(404).json({
-                error: `No existe ningún docente con el ID ${docenteId}`
+        // ASIGNACIÓN AUTOMÁTICA DE ROL
+        // Si se proporciona docenteId, asignar rol DOCENTE automáticamente
+        if (docenteId) {
+            const docenteExiste = await Docente.findByPk(docenteId);
+            if (!docenteExiste) {
+                return res.status(404).json({
+                    error: `No existe ningún docente con el ID ${docenteId}`
+                });
+            }
+
+            // Buscar el rol DOCENTE
+            const rolDocente = await Roles.findOne({ where: { nombre: 'DOCENTE' } });
+            if (!rolDocente) {
+                return res.status(500).json({
+                    error: 'No se encontró el rol DOCENTE en el sistema'
+                });
+            }
+            rolAsignado = rolDocente.id;
+        }
+
+        // Si se proporciona estudianteId, asignar rol ESTUDIANTE automáticamente
+        if (estudianteId) {
+            const estudianteExiste = await Estudiantes.findByPk(estudianteId);
+            if (!estudianteExiste) {
+                return res.status(404).json({
+                    error: `No existe ningún estudiante con el ID ${estudianteId}`
+                });
+            }
+
+            // Buscar el rol ESTUDIANTE
+            const rolEstudiante = await Roles.findOne({ where: { nombre: 'ESTUDIANTE' } });
+            if (!rolEstudiante) {
+                return res.status(500).json({
+                    error: 'No se encontró el rol ESTUDIANTE en el sistema'
+                });
+            }
+            rolAsignado = rolEstudiante.id;
+        }
+
+        // Si no hay docenteId ni estudianteId, debe especificarse el rol manualmente (ADMIN)
+        if (!docenteId && !estudianteId && !rolId) {
+            return res.status(400).json({
+                error: 'Debe proporcionar docenteId, estudianteId o rolId (para ADMIN)'
             });
         }
 
@@ -56,12 +97,30 @@ exports.insertar = async (req, res) => {
         // Crear el nuevo usuario
         const nuevo = await Usuarios.create({
             ...req.body,
-            contrasena: hash
+            contrasena: hash,
+            rolId: rolAsignado
+        });
+
+        // Obtener usuario con información del rol
+        const usuarioConRol = await Usuarios.findByPk(nuevo.id, {
+            include: [{
+                model: Roles,
+                as: 'rol',
+                attributes: ['id', 'nombre', 'descripcion']
+            }]
         });
 
         return res.status(201).json({
             mensaje: 'Usuario creado correctamente',
-            usuario: nuevo
+            usuario: {
+                id: usuarioConRol.id,
+                login: usuarioConRol.login,
+                correo: usuarioConRol.correo,
+                estado: usuarioConRol.estado,
+                rol: usuarioConRol.rol,
+                docenteId: usuarioConRol.docenteId,
+                estudianteId: usuarioConRol.estudianteId
+            }
         });
 
     } catch (error) {
@@ -140,7 +199,14 @@ exports.iniciarSesion = async (req, res) => {
                     correo: login,
                     login: login
                 }
-            }
+            },
+            include: [
+                {
+                    model: Roles,
+                    as: 'rol',
+                    attributes: ['id', 'nombre', 'descripcion']
+                }
+            ]
         });
 
         if (!usuario) {
@@ -173,14 +239,30 @@ exports.iniciarSesion = async (req, res) => {
         usuario.intentos = 0;
         await usuario.save();
 
-        const token = getToken({ id: usuario.id }, { expiresIn: '1d' });
+        // Construir payload del token con información del rol
+        const tokenPayload = {
+            id: usuario.id,
+            rol: usuario.rol ? usuario.rol.nombre : null,
+            docenteId: usuario.docenteId || null,
+            estudianteId: usuario.estudianteId || null
+        };
+
+        const token = getToken(tokenPayload, { expiresIn: '1d' });
+        
         return res.status(200).json({
             token,
             usuario: {
                 id: usuario.id,
                 login: usuario.login,
                 correo: usuario.correo,
-                estado: usuario.estado
+                estado: usuario.estado,
+                rol: usuario.rol ? {
+                    id: usuario.rol.id,
+                    nombre: usuario.rol.nombre,
+                    descripcion: usuario.rol.descripcion
+                } : null,
+                docenteId: usuario.docenteId,
+                estudianteId: usuario.estudianteId
             }
         });
     } catch (error) {
