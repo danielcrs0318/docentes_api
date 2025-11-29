@@ -99,7 +99,7 @@ const rutas = Router();
 // Ruta para obtener todos los estudiantes
 rutas.get('/listar',
     validarToken,
-    verificarRol(['ADMIN', 'DOCENTE']),
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     controladorEstudiantes.ListarEstudiantes
 );
 

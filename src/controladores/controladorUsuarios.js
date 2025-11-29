@@ -12,6 +12,7 @@ const { uploadImagenUsuario } = require('../configuraciones/archivos');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { registrarLog } = require('./controladorAuditoria');
 
 exports.Listar = async (req, res) => {
     try {
@@ -247,10 +248,34 @@ exports.iniciarSesion = async (req, res) => {
             if (usuario.intentos >= 3) {
                 usuario.estado = 'BL';
                 await usuario.save();
+                
+                // Registrar intento fallido de login - usuario bloqueado
+                await registrarLog({
+                    usuarioId: usuario.id,
+                    accion: 'LOGIN_FALLIDO',
+                    descripcion: `Usuario bloqueado por múltiples intentos fallidos (3 intentos)`,
+                    ip: req.ip,
+                    userAgent: req.headers['user-agent'],
+                    resultado: 'FALLIDO',
+                    mensajeError: 'Usuario bloqueado por múltiples intentos fallidos'
+                });
+                
                 return res.status(403).json({ error: 'Usuario bloqueado por múltiples intentos fallidos' });
             }
 
             await usuario.save();
+            
+            // Registrar intento fallido de login
+            await registrarLog({
+                usuarioId: usuario.id,
+                accion: 'LOGIN_FALLIDO',
+                descripcion: `Intento de login fallido (${usuario.intentos}/3)`,
+                ip: req.ip,
+                userAgent: req.headers['user-agent'],
+                resultado: 'FALLIDO',
+                mensajeError: 'Contraseña incorrecta'
+            });
+            
             return res.status(400).json({ error: 'Contraseña incorrecta' });
         }
 
@@ -266,6 +291,16 @@ exports.iniciarSesion = async (req, res) => {
         };
 
         const token = getToken(tokenPayload, { expiresIn: '1d' });
+        
+        // Registrar login exitoso
+        await registrarLog({
+            usuarioId: usuario.id,
+            accion: 'LOGIN',
+            descripcion: `Inicio de sesión exitoso - Rol: ${usuario.rol?.nombre || 'Sin rol'}`,
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            resultado: 'EXITOSO'
+        });
         
         return res.status(200).json({
             token,

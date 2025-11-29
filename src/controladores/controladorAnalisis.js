@@ -43,8 +43,14 @@ exports.AnalizarParcial = async (req, res) => {
     }
 
     // Validar que el docente autenticado sea el de la clase (si no es admin)
-    if (req.usuario && req.usuario.docenteId && clase.docenteId !== req.usuario.docenteId) {
-      return res.status(403).json({ error: 'No autorizado para ver esta clase' });
+    const esAdmin = req.usuario?.rol === 'ADMIN';
+    const esDocenteDeClase = req.usuario?.docenteId && clase.docenteId === req.usuario.docenteId;
+    
+    if (!esAdmin && !esDocenteDeClase) {
+      return res.status(403).json({ 
+        error: 'No autorizado para ver esta clase',
+        mensaje: 'Solo puedes ver análisis de las clases donde eres el docente asignado'
+      });
     }
 
     // Obtener estudiantes inscritos en la clase
@@ -223,9 +229,15 @@ exports.AnalizarPeriodo = async (req, res) => {
       return res.status(404).json({ error: 'Clase no encontrada' });
     }
 
-    // Validar que el docente autenticado sea el de la clase
-    if (req.usuario && req.usuario.docenteId && clase.docenteId !== req.usuario.docenteId) {
-      return res.status(403).json({ error: 'No autorizado para ver esta clase' });
+    // Validar que el usuario tenga acceso a la clase
+    const esAdmin = req.usuario?.rol === 'ADMIN';
+    const esDocenteDeClase = req.usuario?.docenteId && clase.docenteId === req.usuario.docenteId;
+    
+    if (!esAdmin && !esDocenteDeClase) {
+      return res.status(403).json({ 
+        error: 'No autorizado para ver esta clase',
+        mensaje: 'Solo puedes ver análisis de las clases donde eres el docente asignado'
+      });
     }
 
     // Obtener parciales del periodo
@@ -580,8 +592,14 @@ exports.ReporteClase = async (req, res) => {
     }
 
     // Validar autorización
-    if (req.usuario && req.usuario.docenteId && clase.docenteId !== req.usuario.docenteId) {
-      return res.status(403).json({ error: 'No autorizado para ver esta clase' });
+    const esAdmin = req.usuario?.rol === 'ADMIN';
+    const esDocenteDeClase = req.usuario?.docenteId && clase.docenteId === req.usuario.docenteId;
+    
+    if (!esAdmin && !esDocenteDeClase) {
+      return res.status(403).json({ 
+        error: 'No autorizado para ver esta clase',
+        mensaje: 'Solo puedes ver reportes de las clases donde eres el docente asignado'
+      });
     }
 
     const periodo = await Periodos.findByPk(periodoId);
@@ -674,8 +692,14 @@ exports.ReporteDocente = async (req, res) => {
     }
 
     // Validar autorización
-    if (req.usuario && req.usuario.docenteId && req.usuario.docenteId !== parseInt(docenteId)) {
-      return res.status(403).json({ error: 'No autorizado para ver este docente' });
+    const esAdmin = req.usuario?.rol === 'ADMIN';
+    const esMismoDocente = req.usuario?.docenteId && req.usuario.docenteId === parseInt(docenteId);
+    
+    if (!esAdmin && !esMismoDocente) {
+      return res.status(403).json({ 
+        error: 'No autorizado para ver este docente',
+        mensaje: 'Solo puedes ver tu propio reporte como docente'
+      });
     }
 
     const periodo = await Periodos.findByPk(periodoId);
