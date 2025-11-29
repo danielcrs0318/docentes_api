@@ -1,7 +1,12 @@
 const Proyectos = require('../modelos/Proyectos');
 const Estudiantes = require('../modelos/Estudiantes');
+<<<<<<< HEAD
 const EstudiantesClases = require('../modelos/EstudiantesClases');
 const ProyectoEstudiantes = require('../modelos/ProyectoEstudiantes');
+=======
+const Clases = require('../modelos/Clases');
+const EstudiantesClases = require('../modelos/EstudiantesClases');
+>>>>>>> 349642b084f1e7eff58c4e56074be4a47ca2b060
 const { validationResult } = require('express-validator');
 
 /* Listar todos los proyectos con estudiantes asignados */
@@ -49,13 +54,25 @@ exports.CrearProyecto = async (req, res) => {
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
   const { nombre, descripcion, fecha_entrega, estado, claseId } = req.body;
+  
+  // claseId es OBLIGATORIO
+  if (!claseId) {
+    return res.status(400).json({ error: 'claseId es obligatorio para crear un proyecto' });
+  }
+
   try {
+    // Verificar que la clase exista
+    const claseExiste = await Clases.findByPk(claseId);
+    if (!claseExiste) {
+      return res.status(404).json({ error: `No existe una clase con id ${claseId}` });
+    }
+
     const nuevo = await Proyectos.create({
       nombre,
       descripcion: descripcion || null,
       fecha_entrega: fecha_entrega || null,
-      estado: estado || 'PENDIENTE, ENCURSO, ENTREGADO, CERRADO',
-      claseId: claseId || null 
+      estado: estado || 'PENDIENTE',
+      claseId: claseId
     });
     res.status(201).json({ message: 'Proyecto creado', proyecto: nuevo });
   } catch (error) {
@@ -115,18 +132,53 @@ exports.AsignarProyecto = async (req, res) => {
     const proyecto = await Proyectos.findByPk(proyectoId);
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
 
+    if (!proyecto.claseId) {
+      return res.status(400).json({ error: 'El proyecto no tiene una clase asignada' });
+    }
+
+    // Obtener estudiantes inscritos en la clase del proyecto
+    const inscripciones = await EstudiantesClases.findAll({
+      where: { claseId: proyecto.claseId },
+      attributes: ['estudianteId']
+    });
+    const estudiantesEnClase = inscripciones.map(i => i.estudianteId);
+
+    if (estudiantesEnClase.length === 0) {
+      return res.status(400).json({ error: 'No hay estudiantes inscritos en la clase del proyecto' });
+    }
+
     const asignados = [];
+    const rechazados = [];
+    
     for (const estId of estudiantes) {
+      // Validar que el estudiante esté inscrito en la clase
+      if (!estudiantesEnClase.includes(estId)) {
+        rechazados.push({ estudianteId: estId, razon: 'No está inscrito en la clase del proyecto' });
+        continue;
+      }
+
       const est = await Estudiantes.findByPk(estId);
-      if (!est) continue;
-      // evitar duplicados: verificar existencia antes de agregar
+      if (!est) {
+        rechazados.push({ estudianteId: estId, razon: 'Estudiante no encontrado' });
+        continue;
+      }
+
+      // Evitar duplicados
       const existe = await proyecto.hasEstudiante(est);
       if (!existe) {
-        await proyecto.addEstudiante(est); // método generado por Sequelize (alias 'estudiantes')
+        await proyecto.addEstudiante(est);
         asignados.push(estId);
+      } else {
+        rechazados.push({ estudianteId: estId, razon: 'Ya estaba asignado al proyecto' });
       }
     }
-    res.json({ message: 'Asignación completada', totalAsignados: asignados.length, asignados });
+    
+    res.json({ 
+      message: 'Asignación completada', 
+      totalAsignados: asignados.length, 
+      asignados,
+      rechazados: rechazados.length > 0 ? rechazados : undefined
+    });
   } catch (error) {
     console.error('Error asignar proyecto:', error);
     res.status(500).json({ error: 'Error al asignar proyecto' });
@@ -146,6 +198,7 @@ exports.AsignarAleatorio = async (req, res) => {
   const { proyectoId, claseId, maxPorProyecto } = req.body;
 
   try {
+<<<<<<< HEAD
     // determinar claseId objetivo
     let targetClaseId = claseId;
     if (proyectoId) {
@@ -153,6 +206,38 @@ exports.AsignarAleatorio = async (req, res) => {
       if (!proyecto) return res.status(404).json({ error: 'proyectoId no encontrado' });
       if (!proyecto.claseId) return res.status(400).json({ error: 'El proyecto no tiene asociada una clase (claseId)' });
       targetClaseId = proyecto.claseId;
+=======
+    const proyecto = await Proyectos.findByPk(proyectoId);
+    if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    if (!proyecto.claseId) {
+      return res.status(400).json({ error: 'El proyecto no tiene una clase asignada' });
+    }
+
+    // Obtener SOLO estudiantes inscritos en la clase del proyecto
+    const inscripciones = await EstudiantesClases.findAll({
+      where: { claseId: proyecto.claseId },
+      include: [{
+        model: Estudiantes,
+        as: 'estudiante',
+        attributes: ['id', 'nombre', 'correo']
+      }]
+    });
+
+    if (inscripciones.length === 0) {
+      return res.status(400).json({ error: 'No hay estudiantes inscritos en la clase del proyecto' });
+    }
+
+    const pool = inscripciones.map(i => i.estudiante.id);
+    const n = cantidad ? Math.min(parseInt(cantidad, 10), pool.length) : 1;
+    
+    const seleccion = [];
+    const poolCopy = [...pool];
+    while (seleccion.length < n && poolCopy.length > 0) {
+      const idx = Math.floor(Math.random() * poolCopy.length);
+      const [id] = poolCopy.splice(idx, 1);
+      seleccion.push(id);
+>>>>>>> 349642b084f1e7eff58c4e56074be4a47ca2b060
     }
 
     if (!targetClaseId) return res.status(400).json({ error: 'Se requiere proyectoId o claseId' });
@@ -173,6 +258,7 @@ exports.AsignarAleatorio = async (req, res) => {
         return res.status(400).json({ error: 'maxPorProyecto debe ser entero mayor o igual a 1' });
       }
 
+<<<<<<< HEAD
     if (!proyectos || proyectos.length === 0) return res.status(400).json({ error: 'No hay proyectos en la clase indicada' });
     if (!estudiantes || estudiantes.length === 0) return res.status(400).json({ error: 'No hay estudiantes en la clase indicada' });
 
@@ -257,6 +343,16 @@ exports.AsignarAleatorio = async (req, res) => {
   } catch (error) {
     console.error('Error asignar aleatorio por clase:', error);
     return res.status(500).json({ error: 'Error en asignación aleatoria por clase' });
+=======
+    res.json({ 
+      message: 'Asignación aleatoria completada', 
+      totalDisponibles: pool.length,
+      asignados 
+    });
+  } catch (error) {
+    console.error('Error asignar aleatorio:', error);
+    res.status(500).json({ error: 'Error en asignación aleatoria', detalle: error.message });
+>>>>>>> 349642b084f1e7eff58c4e56074be4a47ca2b060
   }
 };
 
@@ -274,5 +370,43 @@ exports.ListarPorEstudiante = async (req, res) => {
   } catch (error) {
     console.error('Error listar por estudiante:', error);
     res.status(500).json({ error: 'Error al listar proyectos del estudiante' });
+  }
+};
+
+/* Listar estudiantes disponibles para asignar a un proyecto (inscritos en su clase) */
+exports.EstudiantesDisponibles = async (req, res) => {
+  const { proyectoId } = req.query;
+  if (!proyectoId) return res.status(400).json({ error: 'proyectoId requerido' });
+
+  try {
+    const proyecto = await Proyectos.findByPk(proyectoId);
+    if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    if (!proyecto.claseId) {
+      return res.status(400).json({ error: 'El proyecto no tiene una clase asignada' });
+    }
+
+    // Obtener estudiantes inscritos en la clase del proyecto
+    const inscripciones = await EstudiantesClases.findAll({
+      where: { claseId: proyecto.claseId },
+      include: [{
+        model: Estudiantes,
+        as: 'estudiante',
+        attributes: ['id', 'nombre', 'correo', 'estado']
+      }]
+    });
+
+    const estudiantesDisponibles = inscripciones.map(i => i.estudiante);
+
+    res.json({ 
+      proyectoId: proyecto.id,
+      proyectoNombre: proyecto.nombre,
+      claseId: proyecto.claseId,
+      totalEstudiantes: estudiantesDisponibles.length,
+      estudiantes: estudiantesDisponibles 
+    });
+  } catch (error) {
+    console.error('Error obtener estudiantes disponibles:', error);
+    res.status(500).json({ error: 'Error al obtener estudiantes disponibles' });
   }
 };

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
+const cors = require('cors');
 const db = require('./configuraciones/db');
 
 // importamos los modelos
@@ -19,15 +20,21 @@ const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
+const modeloRoles = require('./modelos/Roles');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
+const path = require('path');
 
 const app = express();
 
+app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Servir archivos estáticos desde la carpeta public
+app.use('/img', express.static(path.join(__dirname, '../public/img')));
 
 db.authenticate().then(async (data) => {
   console.log('Base de datos conectada');
@@ -60,6 +67,9 @@ db.authenticate().then(async (data) => {
   // Evaluaciones - asociaciones
   modeloClases.hasMany(modeloEvaluaciones, { foreignKey: 'claseId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  modeloSecciones.hasMany(modeloEvaluaciones, { foreignKey: 'seccionId', as: 'evaluaciones' });
+  modeloEvaluaciones.belongsTo(modeloSecciones, { foreignKey: 'seccionId', as: 'seccion' });
 
   modeloParciales.hasMany(modeloEvaluaciones, { foreignKey: 'parcialId', as: 'evaluaciones' });
   modeloEvaluaciones.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
@@ -112,11 +122,30 @@ db.authenticate().then(async (data) => {
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
 
+  // Relaciones de Roles con Usuarios
+  modeloRoles.hasMany(modeloUsuarios, { foreignKey: 'rolId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloRoles, { foreignKey: 'rolId', as: 'rol' });
+
+  // Relaciones de Usuarios con Docentes y Estudiantes
+  modeloDocentes.hasMany(modeloUsuarios, { foreignKey: 'docenteId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+
+  modeloEstudiantes.hasMany(modeloUsuarios, { foreignKey: 'estudianteId', as: 'usuarios' });
+  modeloUsuarios.belongsTo(modeloEstudiantes, { foreignKey: 'estudianteId', as: 'estudiante' });
+
   // Relaciones de Usuario e Imágenes
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 
   // Sincronizar modelos con la base de datos (orden respetando FKs)
+  
+  // 1. Sincronizar Roles primero (no tiene dependencias)
+  await modeloRoles.sync({ alter: true }).then((data) => {
+    console.log("Tabla Roles sincronizada (alter:true) exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   await modeloPeriodos.sync({ alter: true }).then((data) => {
     console.log("Tabla Periodos sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
@@ -136,8 +165,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloClases.sync({ alter: true }).then((data) => {
-    console.log("Tabla Clases sincronizada (alter:true) con un Modelo exitosamente");
+  await modeloClases.sync().then((data) => {
+    console.log("Tabla Clases creada con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -154,8 +183,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloEstudiantes.sync({ alter: true }).then((data) => {
-    console.log("Tabla Estudiantes sincronizada (alter:true) con un Modelo exitosamente");
+  await modeloEstudiantes.sync().then((data) => {
+    console.log("Tabla Estudiantes creada con un Modelo exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -227,6 +256,7 @@ function mountServerAndRoutes() {
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
+  app.use('/api/analisis', require('./rutas/rutaAnalisis'));
 
   // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

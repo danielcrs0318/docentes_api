@@ -3,9 +3,38 @@ const Secciones = require('../modelos/Secciones');
 const Clases = require('../modelos/Clases');
 const EstudiantesClases = require('../modelos/EstudiantesClases');
 const Periodos = require('../modelos/Periodos');
+const Usuarios = require('../modelos/Usuarios');
+const Aulas = require('../modelos/Aulas');
 const { validationResult } = require('express-validator');
 const XLSX = require('xlsx');
 const fs = require('fs');
+const {Op} = require('sequelize');
+
+// Helper: generar nombre del periodo según fechaInicio (IP / IIP / IIIP + yy)
+const generarNombrePeriodo = (fechaInicio) => {
+    if (!fechaInicio) return null;
+    const fecha = (fechaInicio instanceof Date) ? fechaInicio : new Date(fechaInicio);
+    if (isNaN(fecha.getTime())) return null;
+
+    const mes = fecha.getMonth() + 1; // 1-12
+    let numeroPeriodo = 1;
+    if (mes >= 1 && mes <= 4) numeroPeriodo = 1; // Ene-Abr
+    else if (mes >= 5 && mes <= 8) numeroPeriodo = 2; // May-Ago
+    else if (mes >= 9 && mes <= 12) numeroPeriodo = 3; // Sep-Dic
+
+    const prefijoI = 'I'.repeat(numeroPeriodo);
+    const yy = String(fecha.getFullYear()).slice(-2);
+    return `${prefijoI}P${yy}`;
+};
+
+// Helper: generar dias de la semana según créditos
+const generarDiasPorCreditos = (creditos) => {
+    if (!creditos) return [];
+    const c = Number(creditos);
+    if (c === 4) return ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+    if (c === 3) return ["Lunes", "Martes", "Miércoles", "Jueves"];
+    return [];
+};
 
 // Controlador para obtener todos los estudiantes
 exports.ListarEstudiantes = async (req, res) => {
@@ -215,13 +244,43 @@ exports.CargarDesdeExcel = async (req, res) => {
 
             if (!periodo) {
                 // Crear nuevo periodo
+                // Generar nombre basado en fechaInicio
+                const nombreGenerado = generarNombrePeriodo(fechaInicioDate);
                 periodo = await Periodos.create({
-                    nombre: null, // Se agregará posteriormente
+                    nombre: nombreGenerado || null,
                     fechaInicio: fechaInicioDate,
                     fechaFin: fechaFinDate
                 });
                 periodoCreado = true;
             }
+
+            else {
+                // Si el periodo existe pero no tiene nombre, calcularlo y guardarlo
+                if (!periodo.nombre) {
+                    const nombreGenerado = generarNombrePeriodo(periodo.fechaInicio || fechaInicioDate);
+                    if (nombreGenerado) {
+                        periodo.nombre = nombreGenerado;
+                        await periodo.save();
+                    }
+                }
+            }
+        }
+
+        // Leer creditos del body (opcional pero requerido para asignar dias)
+        const creditosBody = req.body && req.body.creditos ? parseInt(req.body.creditos, 10) : null;
+        if (creditosBody && ![3,4].includes(creditosBody)) {
+            return res.status(400).json({ error: 'Los creditos deben ser 3 o 4 cuando se proporcionan' });
+        }
+
+        // Obtener docenteId desde el token (req.usuario.id)
+        let docenteIdFromToken = null;
+        try {
+            if (req.usuario && req.usuario.id) {
+                const usuarioLog = await Usuarios.findByPk(req.usuario.id);
+                if (usuarioLog && usuarioLog.docenteId) docenteIdFromToken = usuarioLog.docenteId;
+            }
+        } catch (err) {
+            console.error('No se pudo obtener usuario desde token:', err.message);
         }
 
         // Buscar o crear la clase
@@ -229,13 +288,28 @@ exports.CargarDesdeExcel = async (req, res) => {
         let claseCreada = false;
         
         if (!clase) {
-            // Crear la nueva clase
+            // Crear la nueva clase con creditos/diaSemana/docenteId si vienen
             clase = await Clases.create({
                 codigo: codigoClase,
                 nombre: nombreClase,
-                diaSemana: [] // Array vacío por defecto
+                creditos: creditosBody || null,
+                diaSemana: generarDiasPorCreditos(creditosBody),
+                docenteId: docenteIdFromToken || null
             });
             claseCreada = true;
+        } else {
+            // Si la clase existe, rellenar campos vacíos con lo provisto
+            let necesitaGuardar = false;
+            if ((!clase.creditos || clase.creditos === null) && creditosBody) {
+                clase.creditos = creditosBody;
+                clase.diaSemana = generarDiasPorCreditos(creditosBody);
+                necesitaGuardar = true;
+            }
+            if ((!clase.docenteId || clase.docenteId === null) && docenteIdFromToken) {
+                clase.docenteId = docenteIdFromToken;
+                necesitaGuardar = true;
+            }
+            if (necesitaGuardar) await clase.save();
         }
 
         // Buscar o crear la sección
@@ -243,6 +317,18 @@ exports.CargarDesdeExcel = async (req, res) => {
         let seccionCreada = false;
         
         if (nombreSeccion) {
+            // Requerir aulaId en el body para crear la sección
+            if (!aulaId) {
+                return res.status(400).json({ error: 'El campo aulaId es obligatorio en el body cuando se crea una sección' });
+            }
+
+            // Verificar que el aula proporcionada exista
+            const aulaIdNum = Number(aulaId);
+            const aulaExistente = await Aulas.findByPk(aulaIdNum);
+            if (!aulaExistente) {
+                return res.status(400).json({ error: `No existe un aula con id ${aulaId}` });
+            }
+
             seccion = await Secciones.findOne({ 
                 where: { 
                     nombre: nombreSeccion,
@@ -251,14 +337,19 @@ exports.CargarDesdeExcel = async (req, res) => {
             });
 
             if (!seccion) {
-                // Crear la nueva sección automáticamente
-                // Si se proporciona aulaId, se usa; sino se crea con null
+                // Crear la nueva sección automáticamente con aulaId provisto
                 seccion = await Secciones.create({
                     nombre: nombreSeccion,
                     claseId: clase.id,
-                    aulaId: aulaId || null
+                    aulaId: aulaIdNum
                 });
                 seccionCreada = true;
+            } else {
+                // Si la sección existe pero no tiene aulaId o es distinto, actualizarlo
+                if (!seccion.aulaId || seccion.aulaId !== aulaIdNum) {
+                    seccion.aulaId = aulaIdNum;
+                    await seccion.save();
+                }
             }
         }
 
@@ -320,12 +411,12 @@ exports.CargarDesdeExcel = async (req, res) => {
             });
         }
 
-        console.log(`📊 Estudiantes leídos del Excel: ${estudiantes.length}`);
+        console.log(`Estudiantes leídos del Excel: ${estudiantes.length}`);
         if (periodo) {
-            console.log(`� Periodo: ${periodo.nombre || 'Sin nombre'} (${periodo.fechaInicio.toISOString().split('T')[0]} - ${periodo.fechaFin.toISOString().split('T')[0]}) ${periodoCreado ? '✨ CREADO' : '✓ Existente'}`);
+            console.log(`Periodo: ${periodo.nombre || 'Sin nombre'} (${periodo.fechaInicio.toISOString().split('T')[0]} - ${periodo.fechaFin.toISOString().split('T')[0]}) ${periodoCreado ? 'CREADO' : ' Existente'}`);
         }
-        console.log(`�📚 Clase: ${clase.nombre} (${clase.codigo}) ${claseCreada ? '✨ CREADA' : '✓ Existente'}`);
-        console.log(`📖 Sección: ${seccion ? seccion.nombre : 'Sin sección'} ${seccionCreada ? '✨ CREADA' : '✓ Existente'}`);
+        console.log(`Clase: ${clase.nombre} (${clase.codigo}) ${claseCreada ? 'CREADA' : ' Existente'}`);
+        console.log(`Sección: ${seccion ? seccion.nombre : 'Sin sección'} ${seccionCreada ? 'CREADA' : ' Existente'}`);
 
         // Procesar estudiantes
         const estudiantesCreados = [];
@@ -381,7 +472,7 @@ exports.CargarDesdeExcel = async (req, res) => {
                     seccionId: seccion ? seccion.id : null
                 };
 
-                console.log(`➕ Creando inscripción para ${est.nombre}:`, datosInscripcion);
+                console.log(` Creando inscripción para ${est.nombre}:`, datosInscripcion);
 
                 await EstudiantesClases.create(datosInscripcion);
 
@@ -394,7 +485,7 @@ exports.CargarDesdeExcel = async (req, res) => {
                 });
 
             } catch (error) {
-                console.error(`❌ Error procesando estudiante ${est.correo}:`, error);
+                console.error(` Error procesando estudiante ${est.correo}:`, error);
                 console.error('Detalles del error:', {
                     message: error.message,
                     name: error.name,
@@ -451,5 +542,178 @@ exports.CargarDesdeExcel = async (req, res) => {
         }
         console.error('Error al procesar archivo Excel:', error);
         res.status(500).json({ error: 'Error al procesar el archivo Excel', detalle: error.message });
+    }
+};
+
+// FILTRO 1: Filtrar por nombre y estado
+exports.filtrarPorNombreYEstado = async (req, res) => {
+    try {
+        const { nombre, estado } = req.query;
+        const whereClause = {};
+
+        if (nombre) {
+            whereClause.nombre = {
+                [Op.like]: `%${nombre.trim()}%`
+            };
+        }
+
+        if (estado) {
+            whereClause.estado = estado.toUpperCase();
+        }
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['nombre', 'ASC']]
+        });
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantes.length} estudiante(s)`,
+            data: estudiantes,
+            count: estudiantes.length
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// FILTRO 2: Filtrar por correo
+exports.filtrarPorCorreo = async (req, res) => {
+    try {
+        const { correo, tipoBusqueda = 'exacta' } = req.query;
+        
+        const whereClause = {
+            correo: tipoBusqueda === 'exacta' ? correo : {
+                [Op.like]: `%${correo}%`
+            }
+        };
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['correo', 'ASC']]
+        });
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantes.length} estudiante(s)`,
+            data: estudiantes,
+            count: estudiantes.length
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes por correo:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// FILTRO 3: Filtrar con estadísticas
+exports.filtrarConEstadisticas = async (req, res) => {
+    try {
+        const { estado, minimoClases } = req.query;
+        const whereClause = {};
+
+        if (estado) {
+            whereClause.estado = estado.toUpperCase();
+        }
+
+        const estudiantes = await Estudiantes.findAll({
+            where: whereClause,
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ],
+            order: [['nombre', 'ASC']]
+        });
+
+        // Filtrar por número mínimo de clases si se especifica
+        const estudiantesFiltrados = minimoClases ? 
+            estudiantes.filter(est => est.inscripciones.length >= parseInt(minimoClases)) :
+            estudiantes;
+
+        // Calcular estadísticas generales
+        const estadisticas = {
+            activos: estudiantes.filter(e => e.estado === 'ACTIVO').length,
+            inactivos: estudiantes.filter(e => e.estado === 'INACTIVO').length,
+            retirados: estudiantes.filter(e => e.estado === 'RETIRADO').length
+        };
+
+        // Agregar estadísticas individuales
+        const dataConEstadisticas = estudiantesFiltrados.map(est => ({
+            ...est.toJSON(),
+            estadisticas: {
+                totalClases: est.inscripciones.length,
+                totalInscripciones: est.inscripciones.length
+            }
+        }));
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantesFiltrados.length} estudiante(s)`,
+            data: dataConEstadisticas,
+            count: estudiantesFiltrados.length,
+            estadisticas
+        });
+
+    } catch (error) {
+        console.error('Error al filtrar estudiantes con estadísticas:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 };

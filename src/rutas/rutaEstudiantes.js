@@ -1,11 +1,10 @@
 const { Router } = require('express');
-const { body, query } = require('express-validator');
+const { body, query, validationResult } = require('express-validator');
 const controladorEstudiantes = require('../controladores/controladorEstudiantes');
 const { uploadExcel } = require('../configuraciones/multer');
+const { validarToken } = require('../configuraciones/passport');
 const rutas = Router();
-const Estudiantes = require('../modelos/Estudiantes');
-const Secciones = require('../modelos/Secciones');
-const Clases = require('../modelos/Clases');
+
 
 /**
  * @swagger
@@ -62,7 +61,7 @@ const Clases = require('../modelos/Clases');
 
 /**
  * @swagger
- * /api/estudiantes/listar:
+ * /estudiantes/listar:
  *   get:
  *     summary: Obtiene la lista de todos los estudiantes
  *     tags: [Estudiantes]
@@ -103,7 +102,7 @@ rutas.get('/listar',
 
 /**
  * @swagger
- * /api/estudiantes/guardar:
+ * /estudiantes/guardar:
  *   post:
  *     summary: Crea un nuevo estudiante
  *     tags: [Estudiantes]
@@ -164,7 +163,7 @@ rutas.post('/guardar', [
 
 /**
  * @swagger
- * /api/estudiantes/editar:
+ * /estudiantes/editar:
  *   put:
  *     summary: Actualiza un estudiante existente
  *     tags: [Estudiantes]
@@ -234,7 +233,7 @@ rutas.put('/editar', [
 
 /**
  * @swagger
- * /api/estudiantes/eliminar:
+ * /estudiantes/eliminar:
  *   delete:
  *     summary: Elimina un estudiante
  *     tags: [Estudiantes]
@@ -264,7 +263,7 @@ rutas.delete('/eliminar', [
 
 /**
  * @swagger
- * /api/estudiantes/importar-excel:
+ * /estudiantes/importar-excel:
  *   post:
  *     summary: Importar estudiantes desde un archivo Excel e inscribirlos en una clase y sección
  *     description: |
@@ -277,9 +276,13 @@ rutas.delete('/eliminar', [
  *       - Desde fila 8 columnas B,C,D: Cuenta, Nombre, Correo de estudiantes
  *       
  *       La clase se crea automáticamente si no existe usando B1 (código) y B2 (nombre).
- *       La sección se crea automáticamente si no existe. El aulaId es opcional.
+ *       La sección se crea automáticamente si no existe.
  *       El periodo se crea automáticamente si B4 y B5 tienen fechas y no existe un periodo con esas fechas.
+ *       
+ *       **IMPORTANTE:** Si se proporciona el nombre de sección (B3), el parámetro `aulaId` es OBLIGATORIO.
  *     tags: [Estudiantes]
+ *     security:
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -288,6 +291,7 @@ rutas.delete('/eliminar', [
  *             type: object
  *             required:
  *               - excel
+ *               - aulaId
  *             properties:
  *               excel:
  *                 type: string
@@ -295,7 +299,13 @@ rutas.delete('/eliminar', [
  *                 description: Archivo Excel (.xlsx o .xls) con los datos de estudiantes
  *               aulaId:
  *                 type: integer
- *                 description: ID del aula para asignar a la sección (opcional, si no se proporciona la sección se crea sin aula)
+ *                 description: ID del aula para asignar a la sección (OBLIGATORIO cuando se crea una sección)
+ *                 example: 1
+ *               creditos:
+ *                 type: integer
+ *                 enum: [3, 4]
+ *                 description: Créditos de la clase (3 o 4). Usado para asignar días de la semana automáticamente
+ *                 example: 4
  *     responses:
  *       201:
  *         description: Estudiantes importados e inscritos exitosamente
@@ -370,6 +380,7 @@ rutas.post('/importar-excel',
         console.log('Body:', req.body);
         next();
     },
+    validarToken,
     uploadExcel.single('excel'),
     (err, req, res, next) => {
         if (err) {
@@ -379,8 +390,7 @@ rutas.post('/importar-excel',
                 detalle: err.message,
                 codigo: err.code,
                 ayuda: 'Verifica que en Postman: 1) El campo se llame "excel", 2) El tipo sea "File" (no "Text"), 3) Hayas seleccionado un archivo'
-            });
-        }
+            });        }
         next();
     },
     controladorEstudiantes.CargarDesdeExcel
@@ -403,6 +413,234 @@ rutas.post('/test-upload',
             }
         });
     }
+);
+
+/**
+ * @swagger
+ * /estudiantes/filtrar-nombre-estado:
+ *   get:
+ *     summary: Filtrar estudiantes por nombre y/o estado
+ *     description: Busca estudiantes por nombre (búsqueda parcial) y/o estado específico
+ *     tags: [Estudiantes]
+ *     parameters:
+ *       - in: query
+ *         name: nombre
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: "Juan"
+ *         description: Nombre o parte del nombre del estudiante
+ *       - in: query
+ *         name: estado
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVO, INACTIVO, RETIRADO]
+ *           example: "ACTIVO"
+ *         description: Estado del estudiante
+ *     responses:
+ *       200:
+ *         description: Lista de estudiantes que coinciden con los criterios
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 5 estudiante(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                         example: 1
+ *                       nombre:
+ *                         type: string
+ *                         example: "Juan Pérez"
+ *                       correo:
+ *                         type: string
+ *                         example: "juan.perez@email.com"
+ *                       estado:
+ *                         type: string
+ *                         example: "ACTIVO"
+ *                       inscripciones:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             id:
+ *                               type: integer
+ *                             fechaInscripcion:
+ *                               type: string
+ *                               format: date-time
+ *                             clase:
+ *                               type: object
+ *                               properties:
+ *                                 id:
+ *                                   type: integer
+ *                                 codigo:
+ *                                   type: string
+ *                                 nombre:
+ *                                   type: string
+ *                             seccion:
+ *                               type: object
+ *                 count:
+ *                   type: integer
+ *                   example: 5
+ *       400:
+ *         description: Parámetros inválidos
+ *       500:
+ *         description: Error del servidor
+ */
+
+/**
+ * @swagger
+ * /estudiantes/filtrar-correo:
+ *   get:
+ *     summary: Filtrar estudiantes por correo electrónico
+ *     description: Busca estudiantes por correo (búsqueda exacta o parcial)
+ *     tags: [Estudiantes]
+ *     parameters:
+ *       - in: query
+ *         name: correo
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: email
+ *           example: "maria.garcia@unicah.edu"
+ *         description: Correo electrónico a buscar
+ *       - in: query
+ *         name: tipoBusqueda
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [exacta, parcial]
+ *           example: "parcial"
+ *         description: Tipo de búsqueda (exacta o parcial)
+ *     responses:
+ *       200:
+ *         description: Lista de estudiantes que coinciden con el correo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 1 estudiante(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       nombre:
+ *                         type: string
+ *                       correo:
+ *                         type: string
+ *                       estado:
+ *                         type: string
+ *                       inscripciones:
+ *                         type: array
+ *                 count:
+ *                   type: integer
+ *                   example: 1
+ *       400:
+ *         description: Parámetro correo inválido
+ *       500:
+ *         description: Error del servidor
+ */
+
+/**
+ * @swagger
+ * /estudiantes/filtrar-estadisticas:
+ *   get:
+ *     summary: Filtrar estudiantes con estadísticas
+ *     description: Busca estudiantes con filtros avanzados incluyendo estadísticas de inscripciones
+ *     tags: [Estudiantes]
+ *     parameters:
+ *       - in: query
+ *         name: estado
+ *         required: false
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVO, INACTIVO, RETIRADO]
+ *           example: "ACTIVO"
+ *         description: Estado del estudiante
+ *       - in: query
+ *         name: minimoClases
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           example: 3
+ *         description: Número mínimo de clases en las que debe estar inscrito
+ *     responses:
+ *       200:
+ *         description: Lista de estudiantes con estadísticas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                   example: "Se encontraron 10 estudiante(s)"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       nombre:
+ *                         type: string
+ *                       correo:
+ *                         type: string
+ *                       estado:
+ *                         type: string
+ *                       estadisticas:
+ *                         type: object
+ *                         properties:
+ *                           totalClases:
+ *                             type: integer
+ *                           totalInscripciones:
+ *                             type: integer
+ *                       inscripciones:
+ *                         type: array
+ *                 count:
+ *                   type: integer
+ *                   example: 10
+ *                 estadisticas:
+ *                   type: object
+ *                   properties:
+ *                     activos:
+ *                       type: integer
+ *                     inactivos:
+ *                       type: integer
+ *                     retirados:
+ *                       type: integer
+ *       400:
+ *         description: Parámetros inválidos
+ *       500:
+ *         description: Error del servidor
+ */
+
+// RUTAS DE FILTROS
+rutas.get('/filtrar-nombre-estado',
+    controladorEstudiantes.filtrarPorNombreYEstado
+);
+
+rutas.get('/filtrar-correo',
+    controladorEstudiantes.filtrarPorCorreo
+);
+
+rutas.get('/filtrar-estadisticas',
+    controladorEstudiantes.filtrarConEstadisticas
 );
 
 module.exports = rutas;

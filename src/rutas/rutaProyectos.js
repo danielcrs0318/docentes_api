@@ -13,7 +13,7 @@ const rutas = Router();
 
 /**
  * @swagger
- * /api/proyectos/listar:
+ * /proyectos/listar:
  *   get:
  *     summary: Lista todos los proyectos con estudiantes asignados
  *     tags: [Proyectos]
@@ -100,7 +100,7 @@ rutas.get('/obtener', [
 
 /**
  * @swagger
- * /api/proyectos/guardar:
+ * /proyectos/guardar:
  *   post:
  *     summary: Crear un nuevo proyecto
  *     tags: [Proyectos]
@@ -164,16 +164,16 @@ rutas.get('/obtener', [
 /* Guardar */
 rutas.post('/guardar', [
   body('nombre').notEmpty().isLength({ min: 2 }).withMessage('nombre obligatorio (min 2 chars)'),
+  body('claseId').notEmpty().isInt().withMessage('claseId es obligatorio y debe ser entero'),
   body('fecha_entrega').optional().isISO8601().withMessage('agregue una fecha de entrega válida'),
   body('estado').optional().isIn(['PENDIENTE','EN_CURSO','ENTREGADO','CERRADO']).withMessage('estado inválido'),
-  body('claseId').optional().isInt().withMessage('claseId debe ser entero'),
   body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de ids').bail()
 ], controladorProyectos.CrearProyecto);
 
 /* Editar */
 /**
  * @swagger
- * /api/proyectos/editar:
+ * /proyectos/editar:
  *   put:
  *     summary: Actualizar un proyecto existente
  *     tags: [Proyectos]
@@ -213,7 +213,7 @@ rutas.put('/editar', [
 /* Eliminar */
 /**
  * @swagger
- * /api/proyectos/eliminar:
+ * /proyectos/eliminar:
  *   delete:
  *     summary: Eliminar un proyecto
  *     tags: [Proyectos]
@@ -246,7 +246,7 @@ rutas.post('/asignar', [
 /* Asignar aleatorio por clase */
 /**
  * @swagger
- * /api/proyectos/asignar-aleatorio:
+ * /proyectos/asignar-aleatorio:
  *   post:
  *     summary: Asignar aleatoriamente estudiantes a proyectos de una misma clase
  *     tags: [Proyectos]
@@ -319,9 +319,58 @@ rutas.post(
   controladorProyectos.AsignarAleatorio
 );
 
+
 /* Listar por estudiante */
+/**swagger
+ * @swagger
+ * /proyectos/por-estudiante:
+ *   get:
+ *     summary: Listar proyectos por estudiante
+ *     tags: [Proyectos]
+ *     parameters:
+ *       - in: query
+ *         name: estudianteId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del estudiante
+ *     responses:
+ *       200:
+ *         description: Proyectos del estudiante encontrados
+ *       400:
+ *         description: Error en los datos proporcionados
+ *       404:
+ *         description: Estudiante no encontrado
+ */
 rutas.get('/por-estudiante', [
   query('estudianteId').notEmpty().isInt()
 ], controladorProyectos.ListarPorEstudiante);
+
+/* Estudiantes disponibles para asignar (inscritos en la clase del proyecto) */
+/**
+ * @swagger
+ * /proyectos/estudiantes-disponibles:
+ *   get:
+ *     summary: Obtener estudiantes disponibles para asignar a un proyecto
+ *     description: Retorna solo los estudiantes inscritos en la clase del proyecto
+ *     tags: [Proyectos]
+ *     parameters:
+ *       - in: query
+ *         name: proyectoId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del proyecto
+ *     responses:
+ *       200:
+ *         description: Lista de estudiantes disponibles
+ *       400:
+ *         description: Error en los datos proporcionados
+ *       404:
+ *         description: Proyecto no encontrado
+ */
+rutas.get('/estudiantes-disponibles', [
+  query('proyectoId').notEmpty().isInt()
+], controladorProyectos.EstudiantesDisponibles);
 
 module.exports = rutas;

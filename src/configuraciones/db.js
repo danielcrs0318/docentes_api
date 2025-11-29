@@ -1,5 +1,4 @@
 const { Sequelize } = require('sequelize');
-require('dotenv').config();
 
 const db = new Sequelize(
     process.env.DB_NAME || 'docentes_db',
@@ -8,7 +7,8 @@ const db = new Sequelize(
     {
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT || 3306,
-        dialect: 'mysql'
+        dialect: 'mysql',
+        logging: false,
     }
 )
 module.exports = db;
