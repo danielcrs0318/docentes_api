@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorClases = require('../controladores/controladorClases');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 
 const rutas = Router();
 
@@ -74,6 +76,8 @@ const rutas = Router();
  */
 
 rutas.get('/listar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     controladorClases.ListarClases);
 
 /**
@@ -119,6 +123,8 @@ rutas.get('/listar',
  *         description: Error en los datos proporcionados
  */
 rutas.post('/guardar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     body('codigo')
         .notEmpty()
         .isLength({ min: 10, max: 11 })
@@ -182,6 +188,8 @@ rutas.post('/guardar', [
  *         description: Clase no encontrada
  */
 rutas.put('/editar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id')
         .notEmpty()
         .withMessage('El ID es obligatorio'),
@@ -224,6 +232,8 @@ rutas.put('/editar', [
  *         description: Clase no encontrada
  */
 rutas.delete('/eliminar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id')
         .notEmpty()
         .withMessage('El ID es obligatorio')
@@ -378,6 +388,8 @@ rutas.delete('/eliminar', [
 
 // Filtrar clases por nombre (búsqueda parcial)
 rutas.get('/filtrar-nombre',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     query('nombre')
         .notEmpty()
         .withMessage('El parámetro nombre es obligatorio'),
@@ -385,6 +397,8 @@ rutas.get('/filtrar-nombre',
 
 // Filtrar clases por día de la semana y créditos
 rutas.get('/filtrar-dia-creditos',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     query('diaSemana')
         .notEmpty()
         .withMessage('El parámetro diaSemana es obligatorio'),

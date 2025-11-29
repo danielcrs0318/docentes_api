@@ -3,6 +3,7 @@ const { body, query, validationResult } = require('express-validator');
 const controladorEstudiantes = require('../controladores/controladorEstudiantes');
 const { uploadExcel } = require('../configuraciones/multer');
 const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 const rutas = Router();
 
 
@@ -97,6 +98,8 @@ const rutas = Router();
 
 // Ruta para obtener todos los estudiantes
 rutas.get('/listar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorEstudiantes.ListarEstudiantes
 );
 
@@ -145,6 +148,8 @@ rutas.get('/listar',
 
 // Ruta para crear un nuevo estudiante
 rutas.post('/guardar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     body('nombre')
         .notEmpty()
         .withMessage('El nombre es obligatorio')
@@ -211,6 +216,8 @@ rutas.post('/guardar', [
 
 // Ruta para actualizar un estudiante existente
 rutas.put('/editar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id')
         .notEmpty()
         .isInt({ min: 1 })
@@ -255,6 +262,8 @@ rutas.put('/editar', [
 
 // Ruta para eliminar un estudiante
 rutas.delete('/eliminar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id')
         .notEmpty()
         .isInt()
@@ -632,14 +641,20 @@ rutas.post('/test-upload',
 
 // RUTAS DE FILTROS
 rutas.get('/filtrar-nombre-estado',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorEstudiantes.filtrarPorNombreYEstado
 );
 
 rutas.get('/filtrar-correo',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorEstudiantes.filtrarPorCorreo
 );
 
 rutas.get('/filtrar-estadisticas',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorEstudiantes.filtrarConEstadisticas
 );
 

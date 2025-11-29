@@ -1,6 +1,8 @@
 const {Router} = require('express');
 const {body, query} = require('express-validator');
 const controladorSecciones = require('../controladores/controladorSecciones');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 const rutas = Router();
 
 // Validaciones para filtrar por nombre
@@ -70,6 +72,8 @@ const validarFiltrarPorAulaYClase = [
  *         description: Error del servidor
  */
 rutas.get('/listar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorSecciones.ListarSecciones
 );
 
@@ -98,6 +102,8 @@ rutas.get('/listar',
  *         description: Error del servidor
  */
 rutas.post('/guardar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
     body('aulaId').isInt().withMessage('El ID de aula debe ser un número entero'),
     body('claseId').isInt().withMessage('El ID de clase debe ser un número entero'),
@@ -138,6 +144,8 @@ rutas.post('/guardar',
  *         description: Error del servidor
  */
 rutas.put('/editar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
     body('aulaId').isInt().withMessage('El ID de aula debe ser un número entero'),
     body('claseId').isInt().withMessage('El ID de clase debe ser un número entero'),
@@ -168,6 +176,8 @@ rutas.put('/editar',
  *         description: Error del servidor
  */
 rutas.delete('/eliminar',
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id').isInt().withMessage('El ID debe ser un número entero'),
     controladorSecciones.EliminarSeccion
 );
@@ -345,7 +355,7 @@ rutas.delete('/eliminar',
  *         description: Error interno del servidor
  */
 
-rutas.get('/filtrar-nombre', validarFiltrarPorNombre, controladorSecciones.filtrarSeccionesPorNombre);
-rutas.get('/filtrar-aula-clase', validarFiltrarPorAulaYClase, controladorSecciones.filtrarSeccionesPorAulaYClase);
+rutas.get('/filtrar-nombre', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validarFiltrarPorNombre, controladorSecciones.filtrarSeccionesPorNombre);
+rutas.get('/filtrar-aula-clase', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validarFiltrarPorAulaYClase, controladorSecciones.filtrarSeccionesPorAulaYClase);
 
 module.exports = rutas;

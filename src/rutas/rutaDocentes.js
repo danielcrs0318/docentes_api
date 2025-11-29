@@ -2,6 +2,8 @@ const { Router } = require('express');
 const { body, query, validationResult } = require('express-validator');
 const rutas = Router();
 const controladorDocentes = require('../controladores/controladorDocentes');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 
 // Middleware de validación personalizado
 const validarFiltros = (validaciones) => {
@@ -64,7 +66,7 @@ const validacionesFiltrarPorEspecialidad = [
  *           format: email
  */
 
-rutas.get('/Listar', controladorDocentes.ListarDocentes);
+rutas.get('/Listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controladorDocentes.ListarDocentes);
 
 /**
  * @swagger
@@ -86,6 +88,8 @@ rutas.get('/Listar', controladorDocentes.ListarDocentes);
  */
 
 rutas.post('/guardar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
     body('correo').isEmail().withMessage('El correo debe ser válido')
 ], controladorDocentes.CrearDocente);
@@ -114,6 +118,8 @@ rutas.post('/guardar', [
  */
 
 rutas.put('/Editar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id').notEmpty().withMessage('El ID del docente es obligatorio'),
     body('nombre').optional().notEmpty().withMessage('El nombre no puede estar vacío'),
     body('correo').optional().isEmail().withMessage('El correo debe ser válido')
@@ -146,6 +152,8 @@ rutas.put('/Editar', [
  */
 
 rutas.delete('/Eliminar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id').notEmpty().withMessage('El ID del docente es obligatorio')
 ], controladorDocentes.EliminarDocente);
 
@@ -240,7 +248,9 @@ rutas.delete('/Eliminar', [
  */
 
 
-rutas.get('/filtrar-nombre', 
+rutas.get('/filtrar-nombre',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     validarFiltros(validacionesFiltrarPorNombre), 
     controladorDocentes.filtrarDocentesPorNombre
 );
