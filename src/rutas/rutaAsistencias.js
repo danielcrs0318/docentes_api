@@ -98,7 +98,7 @@ const validacionesAsistencia = [
  *       500:
  *         description: Error del servidor
  */
-router.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controladorAsistencias.listarAsistencias);
+router.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), controladorAsistencias.listarAsistencias);
 
 /**
  * @swagger
@@ -174,7 +174,7 @@ router.post('/guardar-multiple', validarToken, verificarRol(['ADMIN', 'DOCENTE']
  *       500:
  *         description: Error del servidor
  */
-router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validacionesAsistencia, controladorAsistencias.guardarAsistencia);
+router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), validacionesAsistencia, controladorAsistencias.guardarAsistencia);
 
 /**
  * @swagger
