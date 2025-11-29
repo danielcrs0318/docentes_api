@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorEvaluaciones = require('../controladores/controladorEvaluaciones');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 const rutas = Router();
 
 /**
@@ -665,10 +667,12 @@ const rutas = Router();
 
 
 // Listar evaluaciones (opcionalmente filtrar por claseId, parcialId, periodoId)
-rutas.get('/listar', controladorEvaluaciones.Listar);
+rutas.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), controladorEvaluaciones.Listar);
 
 // Crear evaluación (asignación de estudiantes es opcional, se puede hacer después con /asignar)
 rutas.post('/guardar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     body('titulo').notEmpty().withMessage('El título es obligatorio'),
     body('fechaInicio').notEmpty().isISO8601().withMessage('Fecha de inicio inválida'),
     body('fechaCierre').notEmpty().isISO8601().withMessage('Fecha de cierre inválida'),
@@ -688,6 +692,8 @@ rutas.post('/guardar', [
 
 // Editar evaluación
 rutas.put('/editar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id').notEmpty().isInt().withMessage('id inválido'),
     body('titulo').optional().notEmpty().withMessage('El título no puede estar vacío'),
     body('fechaInicio').optional().isISO8601().withMessage('Fecha de inicio inválida'),
@@ -707,12 +713,16 @@ rutas.put('/editar', [
 
 // Eliminar evaluación
 rutas.delete('/eliminar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id').notEmpty().isInt().withMessage('id inválido')
 ], controladorEvaluaciones.Eliminar);
 
 // Registrar nota para estudiante
 //ruta POST /registrarNota?evaluacionId=1&estudianteId=2&claseId=3&seccionId=2
 rutas.post('/registrarNota', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('evaluacionId').notEmpty().isInt().withMessage('evaluacionId inválido'),
     query('estudianteId').notEmpty().isInt().withMessage('estudianteId inválido'),
     query('claseId').notEmpty().isInt().withMessage('claseId es requerido'),
@@ -723,6 +733,8 @@ rutas.post('/registrarNota', [
 // Obtener total del parcial para un estudiante
 // GET /total-parcial?estudianteId=1&parcialId=2
 rutas.get('/total-parcial', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     query('estudianteId').notEmpty().isInt().withMessage('estudianteId inválido'),
     query('parcialId').notEmpty().isInt().withMessage('parcialId inválido'),
 ], controladorEvaluaciones.GetTotalParcial);
@@ -730,12 +742,16 @@ rutas.get('/total-parcial', [
 // Obtener promedio de parciales para un estudiante en un periodo
 // GET /promedio-periodo?estudianteId=1&periodoId=1
 rutas.get('/promedio-periodo', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
     query('estudianteId').notEmpty().isInt().withMessage('estudianteId inválido'),
     query('periodoId').notEmpty().isInt().withMessage('periodoId inválido'),
 ], controladorEvaluaciones.GetPromedioPorPeriodo);
 
 // Asignar evaluación existente a estudiantes (lista, sección o clase)
 rutas.post('/asignar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('evaluacionId').notEmpty().isInt().withMessage('evaluacionId inválido'),
     body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de IDs'),
     body('estudiantes.*').optional().isInt().withMessage('estudiantes debe contener IDs numéricos'),

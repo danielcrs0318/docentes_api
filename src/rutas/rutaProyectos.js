@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorProyectos = require('../controladores/controladorProyectos');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 const rutas = Router();
 
 /* Listar 
@@ -91,10 +93,12 @@ const rutas = Router();
  */
                             
 
-rutas.get('/listar', controladorProyectos.ListarProyectos);
+rutas.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controladorProyectos.ListarProyectos);
 
 /* Obtener */
 rutas.get('/obtener', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
   query('id').notEmpty().isInt().withMessage('id requerido y debe ser entero')
 ], controladorProyectos.ObtenerProyecto);
 
@@ -163,6 +167,8 @@ rutas.get('/obtener', [
 
 /* Guardar */
 rutas.post('/guardar', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
   body('nombre').notEmpty().isLength({ min: 2 }).withMessage('nombre obligatorio (min 2 chars)'),
   body('claseId').notEmpty().isInt().withMessage('claseId es obligatorio y debe ser entero'),
   body('fecha_entrega').optional().isISO8601().withMessage('agregue una fecha de entrega válida'),
@@ -206,6 +212,8 @@ rutas.post('/guardar', [
  *         description: Proyecto no encontrado
  */
 rutas.put('/editar', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
   query('id').notEmpty().isInt(),
   body('nombre').notEmpty().isLength({ min: 2 })
 ], controladorProyectos.ActualizarProyecto);
@@ -234,11 +242,15 @@ rutas.put('/editar', [
  */
 
 rutas.delete('/eliminar', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
   query('id').notEmpty().isInt()
 ], controladorProyectos.EliminarProyecto);
 
 /* Asignar manual */
 rutas.post('/asignar', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
   body('proyectoId').notEmpty().isInt(),
   body('estudiantes').isArray({ min: 1 }).withMessage('estudiantes debe tener al menos 1 id')
 ], controladorProyectos.AsignarProyecto);
@@ -303,6 +315,7 @@ rutas.post('/asignar', [
  *         description: `proyectoId` no encontrado (si se envió)
  */
 
+<<<<<<< HEAD
 rutas.post(
   '/asignar-aleatorio',
   [
@@ -318,6 +331,14 @@ rutas.post(
   ],
   controladorProyectos.AsignarAleatorio
 );
+=======
+rutas.post('/asignar-aleatorio', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
+  body('proyectoId').notEmpty().isInt(),
+  body('cantidad').optional().isInt({ min: 1 })
+], controladorProyectos.AsignarAleatorio);
+>>>>>>> 4a5f22b679f8596cdba89e0eb43f1112b86ddb8f
 
 
 /* Listar por estudiante */
@@ -343,6 +364,8 @@ rutas.post(
  *         description: Estudiante no encontrado
  */
 rutas.get('/por-estudiante', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
   query('estudianteId').notEmpty().isInt()
 ], controladorProyectos.ListarPorEstudiante);
 
@@ -370,6 +393,8 @@ rutas.get('/por-estudiante', [
  *         description: Proyecto no encontrado
  */
 rutas.get('/estudiantes-disponibles', [
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE']),
   query('proyectoId').notEmpty().isInt()
 ], controladorProyectos.EstudiantesDisponibles);
 

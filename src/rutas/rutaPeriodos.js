@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorPeriodos = require('../controladores/controladorPeriodos');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 const rutas = Router();
 
 // Validaciones para filtrar por nombre
@@ -101,6 +103,8 @@ const validarFiltrarPorFecha = [
  *         description: Error del servidor
  */
 rutas.get('/listar',
+  validarToken,
+  verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']),
   controladorPeriodos.ListarPeriodos);
 
 /**
@@ -128,6 +132,8 @@ rutas.get('/listar',
  *         description: Error del servidor
  */
 rutas.post('/guardar', [
+  validarToken,
+  verificarRol(['ADMIN']),
   body('nombre')
     .notEmpty()
     .isLength({ min: 6, max: 15 })
@@ -204,6 +210,8 @@ rutas.post('/guardar', [
  *         description: Error del servidor
  */
 rutas.put('/editar', [
+  validarToken,
+  verificarRol(['ADMIN']),
   query('id').isInt().withMessage('El ID debe ser un número entero'),
   body('nombre')
     .notEmpty()
@@ -271,6 +279,8 @@ rutas.put('/editar', [
  *         description: Error del servidor
  */
 rutas.delete('/eliminar', [
+  validarToken,
+  verificarRol(['ADMIN']),
   query('id').isInt().withMessage('El ID debe ser un número entero')
 ], controladorPeriodos.EliminarPeriodo);
 
@@ -410,7 +420,7 @@ rutas.delete('/eliminar', [
  *         description: Error interno del servidor
  */
 
-rutas.get('/filtrar-nombre', validarFiltrarPorNombre, controladorPeriodos.filtrarPeriodosPorNombre);
-rutas.get('/filtrar-fecha', validarFiltrarPorFecha, controladorPeriodos.filtrarPeriodosPorFecha);
+rutas.get('/filtrar-nombre', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), validarFiltrarPorNombre, controladorPeriodos.filtrarPeriodosPorNombre);
+rutas.get('/filtrar-fecha', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), validarFiltrarPorFecha, controladorPeriodos.filtrarPeriodosPorFecha);
 
 module.exports = rutas;

@@ -3,6 +3,8 @@ const {body, query} = require('express-validator');
 const controladorAulas = require('../controladores/controladorAulas');
 const rutas = Router();
 const Aulas = require('../modelos/Aulas');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 
 /**
  * @swagger
@@ -70,6 +72,8 @@ const Aulas = require('../modelos/Aulas');
 
 // Rutas para Aulas
 rutas.get('/listar',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     controladorAulas.ListarAulas);
 
 /**
@@ -106,6 +110,8 @@ rutas.get('/listar',
  *         description: Ya existe un aula con ese nombre
  */
 rutas.post('/guardar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     body('nombre')
         .notEmpty()
         .isLength({min: 3, max: 50})
@@ -166,6 +172,8 @@ rutas.post('/guardar', [
  *         description: Ya existe otra aula con ese nombre
  */
 rutas.put('/editar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id')  
         .notEmpty()
         .isInt({ min: 1 })
@@ -217,6 +225,8 @@ rutas.put('/editar', [
  *         description: Aula no encontrada
  */
 rutas.delete('/eliminar', [
+    validarToken,
+    verificarRol(['ADMIN']),
     query('id')
         .notEmpty()
         .isInt()
@@ -253,6 +263,8 @@ rutas.delete('/eliminar', [
 
 // Filtrar aulas por nombre (búsqueda parcial)
 rutas.get('/filtrar-nombre',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('nombre').notEmpty().withMessage('El parámetro "nombre" es requerido'),
     controladorAulas.filtrarPorNombre);
 
@@ -288,6 +300,8 @@ rutas.get('/filtrar-nombre',
 
 // Filtrar aulas por capacidad (rango)
 rutas.get('/filtrar-capacidad',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('min').optional().isInt({ min: 1 }).withMessage('El valor mínimo debe ser un entero mayor que 0'),
     query('max').optional().isInt({ min: 1 }).withMessage('El valor máximo debe ser un entero mayor que 0'),
     controladorAulas.filtrarPorCapacidad);

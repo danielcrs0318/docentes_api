@@ -135,27 +135,45 @@ exports.actualizar = async (req, res) => {
         return res.status(400).json({ errores: errores.array() });
     }
     try {
-        const unico = await Usuarios.findOne({
-            where: {
-                [Op.not]: { id: req.query.id },
-                [Op.or]: [
-                    { login: req.body.login },
-                    { correo: req.body.correo },
-                ]
-            }
-        });
-        if (unico) return res.status(400).json({ mensaje: 'El login o correo ya existe' });
-
         const usuario = await Usuarios.findByPk(req.query.id);
         if (!usuario) return res.status(404).json({ mensaje: 'Usuario no encontrado' });
 
-        if ('contrasena' in req.body) {
-            delete req.body.contrasena;
+        // Verificar login duplicado solo si se está cambiando
+        if (req.body.login && req.body.login !== usuario.login) {
+            const loginExiste = await Usuarios.findOne({
+                where: {
+                    login: req.body.login,
+                    id: { [Op.not]: req.query.id }
+                }
+            });
+            if (loginExiste) {
+                return res.status(400).json({ mensaje: 'El login ya está en uso por otro usuario' });
+            }
+        }
+
+        // Verificar correo duplicado solo si se está cambiando
+        if (req.body.correo && req.body.correo !== usuario.correo) {
+            const correoExiste = await Usuarios.findOne({
+                where: {
+                    correo: req.body.correo,
+                    id: { [Op.not]: req.query.id }
+                }
+            });
+            if (correoExiste) {
+                return res.status(400).json({ mensaje: 'El correo ya está en uso por otro usuario' });
+            }
+        }
+
+        // Si se envía contraseña, hashearla
+        if (req.body.contrasena) {
+            const hash = await argon2.hash(req.body.contrasena);
+            req.body.contrasena = hash;
         }
 
         await usuario.update(req.body);
         res.json(usuario);
     } catch (error) {
+        console.error(error);
         res.status(500).json({ mensaje: 'Error al actualizar usuario' });
     }
 };

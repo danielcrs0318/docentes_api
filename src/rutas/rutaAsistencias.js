@@ -1,6 +1,8 @@
 const { Router } = require('express');
 const { body, param, query } = require('express-validator');
 const controladorAsistencias = require('../controladores/controladorAsistencias');
+const { validarToken } = require('../configuraciones/passport');
+const { verificarRol } = require('../configuraciones/autorizacion');
 
 /**
  * @swagger
@@ -96,7 +98,7 @@ const validacionesAsistencia = [
  *       500:
  *         description: Error del servidor
  */
-router.get('/listar', controladorAsistencias.listarAsistencias);
+router.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controladorAsistencias.listarAsistencias);
 
 /**
  * @swagger
@@ -150,7 +152,7 @@ router.get('/listar', controladorAsistencias.listarAsistencias);
  *         description: Error del servidor
  */
 // Ruta para guardar asistencias múltiples
-router.post('/guardar-multiple', validacionesAsistenciaMultiple, controladorAsistencias.guardarAsistenciaMultiple);
+router.post('/guardar-multiple', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validacionesAsistenciaMultiple, controladorAsistencias.guardarAsistenciaMultiple);
 
 /**
  * @swagger
@@ -172,7 +174,7 @@ router.post('/guardar-multiple', validacionesAsistenciaMultiple, controladorAsis
  *       500:
  *         description: Error del servidor
  */
-router.post('/guardar', validacionesAsistencia, controladorAsistencias.guardarAsistencia);
+router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validacionesAsistencia, controladorAsistencias.guardarAsistencia);
 
 /**
  * @swagger
@@ -204,6 +206,8 @@ router.post('/guardar', validacionesAsistencia, controladorAsistencias.guardarAs
  *         description: Error del servidor
  */
 router.put('/editar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id').isInt().withMessage('ID inválido'),
     ...validacionesAsistencia
 ], controladorAsistencias.editarAsistencia);
@@ -230,6 +234,8 @@ router.put('/editar', [
  *         description: Error del servidor
  */
 router.delete('/eliminar', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('id').isInt().withMessage('ID inválido')
 ], controladorAsistencias.eliminarAsistencia);
 
@@ -270,6 +276,8 @@ router.delete('/eliminar', [
  *         description: Error del servidor
  */
 router.get('/filtrar-fecha', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('fechaInicio').isISO8601().withMessage('Fecha de inicio inválida'),
     query('fechaFin').isISO8601().withMessage('Fecha de fin inválida')
 ], controladorAsistencias.filtrarPorFecha);
@@ -309,6 +317,8 @@ router.get('/filtrar-fecha', [
  *         description: Error del servidor
  */
 router.get('/filtrar-estado-clase', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('estado').isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado inválido'),
     query('claseId').isInt().withMessage('ID de clase inválido')
 ], controladorAsistencias.filtrarPorEstadoYClase);
@@ -388,6 +398,8 @@ router.get('/filtrar-estado-clase', [
  */
 // Calcular asistencia perfecta
 router.get('/calcular-asistencia-perfecta', [
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
     query('claseId').isInt().withMessage('ID de clase inválido'),
     query('parcialId').isInt().withMessage('ID de parcial inválido')
 ], controladorAsistencias.calcularAsistenciaPerfecta);

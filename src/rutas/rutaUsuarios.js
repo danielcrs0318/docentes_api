@@ -304,18 +304,28 @@ rutas.post('/guardar', [
 rutas.put('/editar', [
     query('id').notEmpty().withMessage('El id es obligatorio'),
     body('login').optional().notEmpty().withMessage('El login no puede estar vacío'),
-    body("login").custom(async (value) => {
+    body("login").custom(async (value, { req }) => {
         if (value) {
-            const buscar = await Usuarios.findOne({ where: { login: value } });
+            const buscar = await Usuarios.findOne({ 
+                where: { 
+                    login: value,
+                    id: { [require('sequelize').Op.not]: req.query.id }
+                } 
+            });
             if (buscar) {
                 throw new Error('El login del usuario ya está en uso');
             }
         }
     }),
     body('correo').optional().isEmail().withMessage('El email no es válido'),
-    body("correo").custom(async (value) => {
+    body("correo").custom(async (value, { req }) => {
         if (value) {
-            const buscar = await Usuarios.findOne({ where: { correo: value } });
+            const buscar = await Usuarios.findOne({ 
+                where: { 
+                    correo: value,
+                    id: { [require('sequelize').Op.not]: req.query.id }
+                } 
+            });
             if (buscar) {
                 throw new Error('El correo del usuario ya está en uso');
             }
