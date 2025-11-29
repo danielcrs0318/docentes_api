@@ -4,6 +4,8 @@ const morgan = require('morgan');
 const cors = require('cors');
 const db = require('./configuraciones/db');
 
+//Este comentario es de prueba para git
+
 // importamos los modelos
 const modeloParciales = require('./modelos/Parciales');
 const modeloPeriodos = require('./modelos/Periodos');
