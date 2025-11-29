@@ -7,30 +7,12 @@ const { validationResult } = require('express-validator');
 /* Listar todos los proyectos con estudiantes asignados */
 exports.ListarProyectos = async (req, res) => {
   try {
-    // Filtrar por docente si el usuario tiene rol DOCENTE
-    const { rol, docenteId } = req.user;
-    const where = {};
-    
-    if (rol === 'DOCENTE') {
-      // Filtrar proyectos de clases del docente
-      where['$clase.docenteId$'] = docenteId;
-    }
-    
     const proyectos = await Proyectos.findAll({
-      where,
-      include: [
-        {
-          model: Estudiantes,
-          as: 'estudiantes',
-          attributes: ['id', 'nombre', 'correo']
-        },
-        {
-          model: Clases,
-          as: 'clase',
-          attributes: ['id', 'nombre', 'codigo', 'docenteId'],
-          required: true // INNER JOIN para asegurar que exista la clase
-        }
-      ]
+      include: [{
+        model: Estudiantes,
+        as: 'estudiantes',
+        attributes: ['id', 'nombre', 'correo']
+      }]
     });
     res.json(proyectos);
   } catch (error) {
@@ -45,32 +27,15 @@ exports.ObtenerProyecto = async (req, res) => {
   if (!id) return res.status(400).json({ error: 'id es requerido' });
 
   try {
-    const { rol, docenteId } = req.user;
-    const where = { id };
-    
-    // Si es docente, filtrar por sus clases
-    if (rol === 'DOCENTE') {
-      where['$clase.docenteId$'] = docenteId;
-    }
-    
-    const proyecto = await Proyectos.findOne({
-      where,
-      include: [
-        {
-          model: Estudiantes,
-          as: 'estudiantes',
-          attributes: ['id', 'nombre', 'correo']
-        },
-        {
-          model: Clases,
-          as: 'clase',
-          attributes: ['id', 'nombre', 'codigo', 'docenteId'],
-          required: true
-        }
-      ]
+    const proyecto = await Proyectos.findByPk(id, {
+      include: [{
+        model: Estudiantes,
+        as: 'estudiantes',
+        attributes: ['id', 'nombre', 'correo']
+      }]
     });
 
-    if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado o no tiene acceso' });
+    if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
     res.json(proyecto);
   } catch (error) {
     console.error('Error obtener proyecto:', error);
@@ -97,12 +62,6 @@ exports.CrearProyecto = async (req, res) => {
       return res.status(404).json({ error: `No existe una clase con id ${claseId}` });
     }
 
-    // Si es docente, verificar que la clase le pertenezca
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE' && claseExiste.docenteId !== docenteId) {
-      return res.status(403).json({ error: 'No tiene permiso para crear proyectos en esta clase' });
-    }
-
     const nuevo = await Proyectos.create({
       nombre,
       descripcion: descripcion || null,
@@ -127,20 +86,8 @@ exports.ActualizarProyecto = async (req, res) => {
   const { nombre, descripcion, fecha_entrega, estado, claseId } = req.body;
 
   try {
-    const proyecto = await Proyectos.findByPk(id, {
-      include: [{
-        model: Clases,
-        as: 'clase',
-        attributes: ['id', 'docenteId']
-      }]
-    });
+    const proyecto = await Proyectos.findByPk(id);
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
-
-    // Si es docente, verificar que la clase le pertenezca
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE' && proyecto.clase?.docenteId !== docenteId) {
-      return res.status(403).json({ error: 'No tiene permiso para modificar este proyecto' });
-    }
 
     proyecto.nombre = nombre;
     proyecto.descripcion = (typeof descripcion !== 'undefined') ? descripcion : proyecto.descripcion;
@@ -161,21 +108,8 @@ exports.EliminarProyecto = async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id es requerido' });
   try {
-    const proyecto = await Proyectos.findByPk(id, {
-      include: [{
-        model: Clases,
-        as: 'clase',
-        attributes: ['id', 'docenteId']
-      }]
-    });
+    const proyecto = await Proyectos.findByPk(id);
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
-
-    // Si es docente, verificar que la clase le pertenezca
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE' && proyecto.clase?.docenteId !== docenteId) {
-      return res.status(403).json({ error: 'No tiene permiso para eliminar este proyecto' });
-    }
-
     await proyecto.destroy();
     res.json({ message: 'Proyecto eliminado', proyecto });
   } catch (error) {

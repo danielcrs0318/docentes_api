@@ -39,35 +39,27 @@ const generarDiasPorCreditos = (creditos) => {
 // Controlador para obtener todos los estudiantes
 exports.ListarEstudiantes = async (req, res) => {
     try {
-        // Si es docente, filtrar estudiantes solo de sus clases
-        const { rol, docenteId } = req.user;
-        const includeInscripciones = {
-            model: EstudiantesClases,
-            as: 'inscripciones',
-            attributes: ['id', 'fechaInscripcion'],
-            include: [
-                {
-                    model: Clases,
-                    as: 'clase',
-                    attributes: ['id', 'codigo', 'nombre', 'docenteId']
-                },
-                {
-                    model: Secciones,
-                    as: 'seccion',
-                    attributes: ['id', 'nombre']
-                }
-            ]
-        };
-        
-        // Si es docente, filtrar inscripciones solo de sus clases
-        if (rol === 'DOCENTE') {
-            includeInscripciones.where = { '$inscripciones.clase.docenteId$': docenteId };
-            includeInscripciones.required = true; // Solo estudiantes con inscripciones en clases del docente
-        }
-        
         const estudiantes = await Estudiantes.findAll({
             attributes: ['id', 'nombre', 'correo', 'estado'],
-            include: [includeInscripciones]
+            include: [
+                {
+                    model: EstudiantesClases,
+                    as: 'inscripciones',
+                    attributes: ['id', 'fechaInscripcion'],
+                    include: [
+                        {
+                            model: Clases,
+                            as: 'clase',
+                            attributes: ['id', 'codigo', 'nombre']
+                        },
+                        {
+                            model: Secciones,
+                            as: 'seccion',
+                            attributes: ['id', 'nombre']
+                        }
+                    ]
+                }
+            ]
         });
         res.json(estudiantes);
     } catch (error) {

@@ -20,20 +20,14 @@ exports.Listar = async (req, res) => {
   if (periodoId) where.periodoId = periodoId;
 
   try {
-    // Si es docente, filtrar por sus clases
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE') {
-      where['$clase.docenteId$'] = docenteId;
-    }
-    
     const lista = await Evaluaciones.findAll({ 
       where,
       include: [
         {
           model: Clases,
           as: 'clase',
-          attributes: ['id', 'codigo', 'nombre', 'docenteId'],
-          required: true // INNER JOIN para asegurar que exista la clase
+          attributes: ['id', 'codigo', 'nombre'],
+          required: false
         },
         {
           model: Secciones,
@@ -95,13 +89,6 @@ exports.Guardar = async (req, res) => {
       if (!clase) {
         await evaluacion.destroy();
         return res.status(400).json({ msj: 'Clase no encontrada' });
-      }
-      
-      // Si es docente, verificar que la clase le pertenezca
-      const { rol, docenteId } = req.user;
-      if (rol === 'DOCENTE' && clase.docenteId !== docenteId) {
-        await evaluacion.destroy();
-        return res.status(403).json({ msj: 'No tiene permiso para crear evaluaciones en esta clase' });
       }
     }
 
@@ -255,20 +242,8 @@ exports.Editar = async (req, res) => {
 
   const { id } = req.query;
   try {
-    const evaluacionAnterior = await Evaluaciones.findByPk(id, {
-      include: [{
-        model: Clases,
-        as: 'clase',
-        attributes: ['id', 'nombre', 'docenteId']
-      }]
-    });
+    const evaluacionAnterior = await Evaluaciones.findByPk(id);
     if (!evaluacionAnterior) return res.status(404).json({ msj: 'Evaluación no encontrada' });
-
-    // Si es docente, verificar que la clase le pertenezca
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE' && evaluacionAnterior.clase?.docenteId !== docenteId) {
-      return res.status(403).json({ msj: 'No tiene permiso para editar esta evaluación' });
-    }
 
     // Detectar cambios
     const cambios = [];
@@ -344,20 +319,8 @@ exports.Eliminar = async (req, res) => {
 
   const { id } = req.query;
   try {
-    const evaluacion = await Evaluaciones.findByPk(id, {
-      include: [{
-        model: Clases,
-        as: 'clase',
-        attributes: ['id', 'nombre', 'docenteId']
-      }]
-    });
+    const evaluacion = await Evaluaciones.findByPk(id);
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
-
-    // Si es docente, verificar que la clase le pertenezca
-    const { rol, docenteId } = req.user;
-    if (rol === 'DOCENTE' && evaluacion.clase?.docenteId !== docenteId) {
-      return res.status(403).json({ msj: 'No tiene permiso para eliminar esta evaluación' });
-    }
 
     // 🔹 Obtener información de la clase
     const clase = evaluacion.claseId ? await Clases.findByPk(evaluacion.claseId) : null;
