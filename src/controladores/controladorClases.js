@@ -6,8 +6,17 @@ const { Op } = require('sequelize');
 // Controlador para obtener todas las clases
 exports.ListarClases = async (req, res) => {
     try {
+        // Si es docente, filtrar solo sus clases
+        const { rol, docenteId } = req.user;
+        const where = {};
+        
+        if (rol === 'DOCENTE') {
+            where.docenteId = docenteId;
+        }
+        
         const clases = await Clases.findAll({
-            attributes: ['id', 'codigo', 'nombre', 'diaSemana'],
+            where,
+            attributes: ['id', 'codigo', 'nombre', 'diaSemana', 'docenteId'],
             include: [{
                 model: Seccion,
                 as: 'secciones',
