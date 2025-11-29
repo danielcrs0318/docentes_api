@@ -312,10 +312,9 @@ rutas.post('/asignar', [
  *       400:
  *         description: Entrada inválida o no hay proyectos/estudiantes en la clase
  *       404:
- *         description: `proyectoId` no encontrado (si se envió)
+ *         description: proyectoId no encontrado (si se envió)
  */
 
-<<<<<<< HEAD
 rutas.post(
   '/asignar-aleatorio',
   [
@@ -331,14 +330,6 @@ rutas.post(
   ],
   controladorProyectos.AsignarAleatorio
 );
-=======
-rutas.post('/asignar-aleatorio', [
-  validarToken,
-  verificarRol(['ADMIN', 'DOCENTE']),
-  body('proyectoId').notEmpty().isInt(),
-  body('cantidad').optional().isInt({ min: 1 })
-], controladorProyectos.AsignarAleatorio);
->>>>>>> 4a5f22b679f8596cdba89e0eb43f1112b86ddb8f
 
 
 /* Listar por estudiante */
