@@ -193,12 +193,11 @@ exports.Guardar = async (req, res) => {
     const asignaciones = estudiantes.map(e => ({ evaluacionId: evaluacion.id, estudianteId: e.id }));
     await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
 
-    // ---- Envío de correos en paralelo (no bloqueante)
-    const promesasCorreos = estudiantes
+    // Enviar correos usando la cola optimizada
+    estudiantes
       .filter(e => e.correo)
-      .map(e => {
-        const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
-        const contenido = `
+      .forEach(e => {
+        const contenidoHTML = `
           <h3>Hola ${e.nombre || 'estudiante'},</h3>
           <p>Se te ha asignado una nueva evaluación:</p>
           <ul>
@@ -210,15 +209,21 @@ exports.Guardar = async (req, res) => {
           </ul>
           <p>Por favor revisa la plataforma para más detalles.</p>
         `;
-        return enviarCorreo(e.correo, asunto, contenido);
+        
+        colaCorreos.agregarCorreo(
+          e.correo,
+          `Nueva evaluación asignada: ${evaluacion.titulo}`,
+          contenidoHTML,
+          { tipo: 'evaluacion_creada', evaluacionId: evaluacion.id, estudianteId: e.id }
+        );
       });
 
-    Promise.allSettled(promesasCorreos).then(results => {
-      const fallos = results.filter(r => r.status === 'rejected');
-      if (fallos.length) console.warn(` Fallaron ${fallos.length} envíos de correo`);
+    res.status(201).json({ 
+      evaluacion, 
+      asignadas: asignaciones.length, 
+      correosEnviados: estudiantes.filter(e => e.correo).length,
+      mensaje: 'Evaluación creada correctamente' 
     });
-
-    res.status(201).json({ evaluacion, asignadas: asignaciones.length, mensaje: 'Evaluación creada (envío de correos en proceso)' });
   } catch (err) {
     console.error('Error al guardar evaluación:', err);
     res.status(500).json({ msj: 'Error al guardar evaluación', error: err.message || err });
@@ -410,8 +415,7 @@ exports.RegistrarNota = async (req, res) => {
 
     const estudiante = registro.estudiante;
     if (estudiante?.correo) {
-      const asunto = `Nota registrada - ${evaluacion.titulo}`;
-      const contenido = `
+      const contenidoHTML = `
         <h3>Hola ${estudiante.nombre || 'estudiante'},</h3>
         <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${claseNombre}</strong>:</p>
         <ul>
@@ -419,12 +423,21 @@ exports.RegistrarNota = async (req, res) => {
           <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
           <li><strong>Total del parcial:</strong> ${total.final}</li>
         </ul>`;
-      enviarCorreo(estudiante.correo, asunto, contenido).catch(err =>
-        console.error(`Error al enviar correo a ${estudiante.correo}:`, err.message)
+      
+      colaCorreos.agregarCorreo(
+        estudiante.correo,
+        `Nota registrada - ${evaluacion.titulo}`,
+        contenidoHTML,
+        { tipo: 'nota_registrada', evaluacionId, estudianteId }
       );
     }
 
-    res.json({ msj: 'Nota registrada (correo enviándose en segundo plano)', registro, totalParcial: total });
+    res.json({ 
+      msj: 'Nota registrada correctamente', 
+      registro, 
+      totalParcial: total,
+      correoEnviado: estudiante?.correo ? true : false
+    });
   } catch (err) {
     res.status(500).json({ msj: 'Error al registrar nota', error: err.message || err });
   }
@@ -618,12 +631,11 @@ exports.Asignar = async (req, res) => {
       if (aInsertar.length > 0) await EvaluacionesEstudiantes.bulkCreate(aInsertar);
     }
 
-    // ---- Envío de correos en paralelo (no bloqueante)
-    const promesasCorreos = estudiantes
+    // Enviar correos usando la cola optimizada
+    estudiantes
       .filter(e => e.correo)
-      .map(e => {
-        const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
-        const contenido = `
+      .forEach(e => {
+        const contenidoHTML = `
           <h3>Hola ${e.nombre || 'estudiante'},</h3>
           <p>Se te ha asignado una nueva evaluación:</p>
           <ul>
@@ -635,15 +647,20 @@ exports.Asignar = async (req, res) => {
           </ul>
           <p>Por favor revisa la plataforma para más detalles.</p>
         `;
-        return enviarCorreo(e.correo, asunto, contenido);
+        
+        colaCorreos.agregarCorreo(
+          e.correo,
+          `Nueva evaluación asignada: ${evaluacion.titulo}`,
+          contenidoHTML,
+          { tipo: 'evaluacion_asignada', evaluacionId: evaluacion.id, estudianteId: e.id }
+        );
       });
 
-    Promise.allSettled(promesasCorreos).then(results => {
-      const fallos = results.filter(r => r.status === 'rejected');
-      if (fallos.length) console.warn(` Fallaron ${fallos.length} envíos de correo`);
+    res.json({ 
+      msj: 'Asignación completada correctamente', 
+      asignadas: asignaciones.length,
+      correosEnviados: estudiantes.filter(e => e.correo).length
     });
-
-    res.json({ msj: 'Asignación completada (envío de correos en proceso)', asignadas: asignaciones.length });
   } catch (err) {
     res.status(500).json({ msj: 'Error al asignar evaluación', error: err.message || err });
   }
