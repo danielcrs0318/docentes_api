@@ -23,6 +23,7 @@ const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 const modeloRoles = require('./modelos/Roles');
+const modeloLogsAuditoria = require('./modelos/LogsAuditoria');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -237,6 +238,12 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloLogsAuditoria.sync({ alter: true }).then((data) => {
+    console.log("Tabla LogsAuditoria sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   // Montar rutas e iniciar servidor ahora que los modelos y asociaciones están listos
   mountServerAndRoutes();
 
@@ -259,6 +266,7 @@ function mountServerAndRoutes() {
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
   app.use('/api/analisis', require('./rutas/rutaAnalisis'));
+  app.use('/api/auditoria', require('./rutas/rutaAuditoria'));
 
   // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
