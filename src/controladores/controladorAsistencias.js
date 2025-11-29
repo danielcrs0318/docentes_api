@@ -13,7 +13,16 @@ const plantillasCorreo = require('../configuraciones/plantillasCorreo');
 // Listar todas las asistencias
 exports.listarAsistencias = async (req, res) => {
     try {
+        // Si es docente, filtrar por sus clases
+        const { rol, docenteId } = req.user;
+        const where = {};
+        
+        if (rol === 'DOCENTE') {
+            where['$clase.docenteId$'] = docenteId;
+        }
+        
         const asistencias = await Asistencia.findAll({
+            where,
             include: [
                 {
                     model: Estudiante,
@@ -23,7 +32,8 @@ exports.listarAsistencias = async (req, res) => {
                 {
                     model: Clase,
                     as: 'clase',
-                    attributes: ['nombre']
+                    attributes: ['nombre', 'docenteId'],
+                    required: true // INNER JOIN para asegurar que exista la clase
                 },
                 {
                     model: Periodo,
@@ -72,6 +82,12 @@ exports.guardarAsistencia = async (req, res) => {
     if (!parcialExists) return res.status(400).json({ mensaje: `Parcial con id ${payload.parcialId} no encontrado` });
     const claseExists = await Clase.findByPk(payload.claseId);
     if (!claseExists) return res.status(400).json({ mensaje: `Clase con id ${payload.claseId} no encontrado` });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.user;
+    if (rol === 'DOCENTE' && claseExists.docenteId !== docenteId) {
+      return res.status(403).json({ mensaje: 'No tiene permiso para registrar asistencias en esta clase' });
+    }
 
     const asistencia = await Asistencia.create(payload);
 
@@ -155,6 +171,13 @@ exports.guardarAsistenciaMultiple = async (req, res) => {
             // Si se especificó una clase
             const clase = await Clase.findByPk(claseId);
             if (!clase) return res.status(400).json({ mensaje: 'Clase no encontrada' });
+            
+            // Si es docente, verificar que la clase le pertenezca
+            const { rol, docenteId } = req.user;
+            if (rol === 'DOCENTE' && clase.docenteId !== docenteId) {
+                return res.status(403).json({ mensaje: 'No tiene permiso para registrar asistencias en esta clase' });
+            }
+            
             estudiantesObjetivo = await Estudiante.findAll({ 
                 where: { claseId: claseId }
             });
@@ -302,13 +325,19 @@ exports.editarAsistencia = async (req, res) => {
                 {
                     model: Clase,
                     as: 'clase',
-                    attributes: ['id', 'nombre']
+                    attributes: ['id', 'nombre', 'docenteId']
                 }
             ]
         });
 
         if (!asistencia) {
             return res.status(404).json({ mensaje: 'Asistencia no encontrada' });
+        }
+
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.user;
+        if (rol === 'DOCENTE' && asistencia.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ mensaje: 'No tiene permiso para editar esta asistencia' });
         }
 
         // Guardar estado anterior para comparación
@@ -385,9 +414,21 @@ exports.editarAsistencia = async (req, res) => {
 // Eliminar asistencia
 exports.eliminarAsistencia = async (req, res) => {
     try {
-        const asistencia = await Asistencia.findByPk(req.query.id);
+        const asistencia = await Asistencia.findByPk(req.query.id, {
+            include: [{
+                model: Clase,
+                as: 'clase',
+                attributes: ['id', 'docenteId']
+            }]
+        });
         if (!asistencia) {
             return res.status(404).json({ mensaje: 'Asistencia no encontrada' });
+        }
+
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.user;
+        if (rol === 'DOCENTE' && asistencia.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ mensaje: 'No tiene permiso para eliminar esta asistencia' });
         }
 
         await asistencia.destroy();
@@ -408,12 +449,20 @@ exports.filtrarPorFecha = async (req, res) => {
         const fin = new Date(fechaFin);
         fin.setHours(23, 59, 59, 999); // Incluir hasta el final del día
 
+        const where = {
+            fecha: {
+                [Op.between]: [inicio, fin]
+            }
+        };
+        
+        // Si es docente, filtrar por sus clases
+        const { rol, docenteId } = req.user;
+        if (rol === 'DOCENTE') {
+            where['$clase.docenteId$'] = docenteId;
+        }
+
         const asistencias = await Asistencia.findAll({
-            where: {
-                fecha: {
-                    [Op.between]: [inicio, fin]
-                }
-            },
+            where,
             include: [
                 {
                     model: Estudiante,
@@ -423,7 +472,8 @@ exports.filtrarPorFecha = async (req, res) => {
                 {
                     model: Clase,
                     as: 'clase',
-                    attributes: ['nombre']
+                    attributes: ['nombre', 'docenteId'],
+                    required: true
                 }
             ]
         });
