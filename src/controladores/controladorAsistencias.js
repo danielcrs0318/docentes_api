@@ -7,6 +7,8 @@ const Clase = require('../modelos/Clases');
 const Periodo = require('../modelos/Periodos');
 const Parcial = require('../modelos/Parciales');
 const Secciones = require('../modelos/Secciones');
+const colaCorreos = require('../configuraciones/colaCorreos');
+const plantillasCorreo = require('../configuraciones/plantillasCorreo');
 
 // Listar todas las asistencias
 exports.listarAsistencias = async (req, res) => {
@@ -72,6 +74,31 @@ exports.guardarAsistencia = async (req, res) => {
     if (!claseExists) return res.status(400).json({ mensaje: `Clase con id ${payload.claseId} no encontrado` });
 
     const asistencia = await Asistencia.create(payload);
+
+    // Enviar notificación por correo
+    if (estudiante.correo) {
+        const contenidoHTML = plantillasCorreo.asistenciaRegistrada({
+            asistencia: {
+                fecha: asistencia.fecha,
+                estado: asistencia.estado,
+                descripcion: asistencia.descripcion
+            },
+            estudiante: {
+                nombre: estudiante.nombre
+            },
+            clase: {
+                nombre: claseExists.nombre
+            }
+        });
+
+        colaCorreos.agregarCorreo(
+            estudiante.correo,
+            `📋 Asistencia registrada - ${claseExists.nombre}`,
+            contenidoHTML,
+            { tipo: 'asistencia_registrada', asistenciaId: asistencia.id, estudianteId: estudiante.id }
+        );
+    }
+
     return res.status(201).json(asistencia);
     } catch (error) {
         console.error('Error al crear asistencia:', error);
@@ -198,9 +225,53 @@ exports.guardarAsistenciaMultiple = async (req, res) => {
         // Si no existen asistencias previas, crear todas
         const asistenciasCreadas = await Asistencia.bulkCreate(asistenciasACrear);
 
+        // Obtener información de la clase
+        const clase = await Clase.findByPk(claseId);
+
+        // Calcular resumen
+        const resumen = {
+            presentes: asistenciasCreadas.filter(a => a.estado === 'PRESENTE').length,
+            ausentes: asistenciasCreadas.filter(a => a.estado === 'AUSENTE').length,
+            tardanzas: asistenciasCreadas.filter(a => a.estado === 'TARDANZA').length,
+            total: asistenciasCreadas.length
+        };
+
+        // Enviar correos individuales a cada estudiante
+        for (const asistencia of asistenciasCreadas) {
+            const estudiante = estudiantesObjetivo.find(e => e.id === asistencia.estudianteId);
+            
+            if (estudiante && estudiante.correo) {
+                const contenidoHTML = plantillasCorreo.asistenciaRegistrada({
+                    asistencia: {
+                        fecha: asistencia.fecha,
+                        estado: asistencia.estado,
+                        descripcion: asistencia.descripcion
+                    },
+                    estudiante: {
+                        nombre: estudiante.nombre
+                    },
+                    clase: {
+                        nombre: clase?.nombre || 'N/A'
+                    }
+                });
+
+                colaCorreos.agregarCorreo(
+                    estudiante.correo,
+                    `📋 Asistencia registrada - ${clase?.nombre || 'Clase'}`,
+                    contenidoHTML,
+                    { tipo: 'asistencia_registrada', asistenciaId: asistencia.id, estudianteId: estudiante.id }
+                );
+            }
+        }
+
         res.status(201).json({
             mensaje: 'Asistencias registradas correctamente',
             cantidad: asistenciasCreadas.length,
+            resumen,
+            correosEnviados: asistenciasCreadas.filter(a => {
+                const est = estudiantesObjetivo.find(e => e.id === a.estudianteId);
+                return est && est.correo;
+            }).length,
             asistencias: asistenciasCreadas
         });
 
@@ -221,13 +292,90 @@ exports.editarAsistencia = async (req, res) => {
     }
 
     try {
-        const asistencia = await Asistencia.findByPk(req.query.id);
+        const asistencia = await Asistencia.findByPk(req.query.id, {
+            include: [
+                {
+                    model: Estudiante,
+                    as: 'estudiante',
+                    attributes: ['id', 'nombre', 'correo']
+                },
+                {
+                    model: Clase,
+                    as: 'clase',
+                    attributes: ['id', 'nombre']
+                }
+            ]
+        });
+
         if (!asistencia) {
             return res.status(404).json({ mensaje: 'Asistencia no encontrada' });
         }
 
+        // Guardar estado anterior para comparación
+        const asistenciaAnterior = {
+            estado: asistencia.estado,
+            descripcion: asistencia.descripcion,
+            fecha: asistencia.fecha
+        };
+
+        // Detectar cambios
+        const cambios = [];
+        if (req.body.estado && req.body.estado !== asistenciaAnterior.estado) {
+            cambios.push({
+                campo: 'Estado',
+                anterior: asistenciaAnterior.estado,
+                nuevo: req.body.estado
+            });
+        }
+        if (req.body.descripcion !== undefined && req.body.descripcion !== asistenciaAnterior.descripcion) {
+            cambios.push({
+                campo: 'Descripción',
+                anterior: asistenciaAnterior.descripcion || 'Sin descripción',
+                nuevo: req.body.descripcion || 'Sin descripción'
+            });
+        }
+        if (req.body.fecha && new Date(req.body.fecha).getTime() !== new Date(asistenciaAnterior.fecha).getTime()) {
+            cambios.push({
+                campo: 'Fecha',
+                anterior: new Date(asistenciaAnterior.fecha).toLocaleDateString('es-ES'),
+                nuevo: new Date(req.body.fecha).toLocaleDateString('es-ES')
+            });
+        }
+
+        // Actualizar asistencia
         await asistencia.update(req.body);
-        res.json(asistencia);
+
+        // Enviar notificación si hay cambios y el estudiante tiene correo
+        if (cambios.length > 0 && asistencia.estudiante?.correo) {
+            const contenidoHTML = plantillasCorreo.asistenciaActualizada({
+                asistencia: {
+                    fecha: asistencia.fecha,
+                    estado: asistencia.estado,
+                    descripcion: asistencia.descripcion
+                },
+                asistenciaAnterior,
+                estudiante: {
+                    nombre: asistencia.estudiante.nombre
+                },
+                clase: {
+                    nombre: asistencia.clase?.nombre || 'N/A'
+                },
+                cambios
+            });
+
+            colaCorreos.agregarCorreo(
+                asistencia.estudiante.correo,
+                `🔄 Asistencia actualizada - ${asistencia.clase?.nombre || 'Clase'}`,
+                contenidoHTML,
+                { tipo: 'asistencia_actualizada', asistenciaId: asistencia.id, estudianteId: asistencia.estudiante.id }
+            );
+        }
+
+        res.json({ 
+            asistencia,
+            cambios: cambios.length,
+            correoEnviado: cambios.length > 0 && asistencia.estudiante?.correo ? true : false
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error al actualizar la asistencia' });

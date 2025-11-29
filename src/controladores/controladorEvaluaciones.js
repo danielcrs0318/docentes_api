@@ -8,6 +8,8 @@ const Clases = require('../modelos/Clases');
 const Secciones = require('../modelos/Secciones');
 const { validationResult } = require('express-validator');
 const { enviarCorreo } = require('../configuraciones/correo');
+const colaCorreos = require('../configuraciones/colaCorreos');
+const plantillasCorreo = require('../configuraciones/plantillasCorreo');
 
 exports.Listar = async (req, res) => {
   // opcional: filtrar por claseId, parcialId o periodoId
@@ -238,6 +240,20 @@ exports.Editar = async (req, res) => {
     const evaluacionAnterior = await Evaluaciones.findByPk(id);
     if (!evaluacionAnterior) return res.status(404).json({ msj: 'Evaluación no encontrada' });
 
+    // Detectar cambios
+    const cambios = [];
+    const camposAComparar = ['titulo', 'notaMaxima', 'fechaInicio', 'fechaCierre', 'tipo', 'peso', 'estado'];
+    
+    camposAComparar.forEach(campo => {
+      if (req.body[campo] !== undefined && req.body[campo] !== evaluacionAnterior[campo]) {
+        cambios.push({
+          campo: campo.charAt(0).toUpperCase() + campo.slice(1),
+          anterior: evaluacionAnterior[campo],
+          nuevo: req.body[campo]
+        });
+      }
+    });
+
     await Evaluaciones.update({ ...req.body }, { where: { id } });
     const evaluacion = await Evaluaciones.findByPk(id);
 
@@ -249,31 +265,37 @@ exports.Editar = async (req, res) => {
       include: [{ model: Estudiantes, as: 'estudiante' }]
     });
 
-    // Correos en paralelo
-    const promesasCorreos = asignaciones
+    // Obtener usuario que realizó el cambio
+    const usuario = req.user ? (req.user.nombre || req.user.correo || 'Sistema') : 'Sistema';
+
+    // Enviar correos usando la cola optimizada
+    asignaciones
       .filter(a => a.estudiante?.correo)
-      .map(a => {
-        const e = a.estudiante;
-        const asunto = `Actualización en la evaluación: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>Se ha actualizado la evaluación a la que estás asignado:</p>
-          <ul>
-            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
-            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
-            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
-            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
-          </ul>`;
-        return enviarCorreo(e.correo, asunto, contenido);
+      .forEach(a => {
+        const contenidoHTML = plantillasCorreo.evaluacionEditada({
+          evaluacion: {
+            titulo: evaluacion.titulo,
+            notaMaxima: evaluacion.notaMaxima,
+            fechaCierre: evaluacion.fechaCierre,
+            clase: clase?.nombre
+          },
+          cambios,
+          usuario
+        });
+
+        colaCorreos.agregarCorreo(
+          a.estudiante.correo,
+          `📝 Actualización en evaluación: ${evaluacion.titulo}`,
+          contenidoHTML,
+          { tipo: 'evaluacion_editada', evaluacionId: id, estudianteId: a.estudiante.id }
+        );
       });
 
-    Promise.allSettled(promesasCorreos).then(r => {
-      const fallos = r.filter(x => x.status === 'rejected');
-      if (fallos.length) console.warn(` ${fallos.length} correos fallaron en Editar`);
+    res.json({ 
+      msj: 'Evaluación actualizada correctamente', 
+      cambios: cambios.length,
+      correosEnviados: asignaciones.filter(a => a.estudiante?.correo).length 
     });
-
-    res.json({ msj: 'Evaluación actualizada (envío de correos en proceso)' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msj: 'Error al actualizar evaluación', error: err });
@@ -306,25 +328,34 @@ exports.Eliminar = async (req, res) => {
     await EvaluacionesEstudiantes.destroy({ where: { evaluacionId: id } });
     await Evaluaciones.destroy({ where: { id } });
 
-    // Enviar correos en paralelo
-    const promesasCorreos = asignaciones
+    // Obtener usuario que realizó la eliminación
+    const usuario = req.user ? (req.user.nombre || req.user.correo || 'Sistema') : 'Sistema';
+
+    // Enviar correos usando la cola optimizada
+    asignaciones
       .filter(a => a.estudiante?.correo)
-      .map(a => {
-        const e = a.estudiante;
-        const asunto = `Evaluación eliminada: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>La evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${clase ? clase.nombre : 'Sin clase asociada'}</strong> ha sido eliminada.</p>
-          <p>Ya no aparecerá en tu lista de evaluaciones.</p>`;
-        return enviarCorreo(e.correo, asunto, contenido);
+      .forEach(a => {
+        const contenidoHTML = plantillasCorreo.evaluacionEliminada({
+          evaluacion: {
+            titulo: evaluacion.titulo,
+            notaMaxima: evaluacion.notaMaxima,
+            clase: clase?.nombre
+          },
+          usuario
+        });
+
+        colaCorreos.agregarCorreo(
+          a.estudiante.correo,
+          `🗑️ Evaluación eliminada: ${evaluacion.titulo}`,
+          contenidoHTML,
+          { tipo: 'evaluacion_eliminada', evaluacionId: id, estudianteId: a.estudiante.id }
+        );
       });
 
-    Promise.allSettled(promesasCorreos).then(r => {
-      const fallos = r.filter(x => x.status === 'rejected');
-      if (fallos.length) console.warn(` ${fallos.length} correos fallaron en Eliminar`);
+    res.json({ 
+      msj: 'Evaluación eliminada correctamente',
+      correosEnviados: asignaciones.filter(a => a.estudiante?.correo).length
     });
-
-    res.json({ msj: 'Evaluación eliminada (envío de correos en proceso)' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msj: 'Error al eliminar evaluación', error: err });
