@@ -10,12 +10,24 @@ const { validationResult } = require('express-validator');
 const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
 
 exports.Listar = async (req, res) => {
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ msj: 'Usuario no autenticado' });
+  }
+
+  const { rol, docenteId } = req.usuario;
+
   // opcional: filtrar por claseId, parcialId o periodoId
   const { claseId, parcialId, periodoId } = req.query;
   const where = {};
   if (claseId) where.claseId = claseId;
   if (parcialId) where.parcialId = parcialId;
   if (periodoId) where.periodoId = periodoId;
+
+  // Filtrar por docente si el rol es DOCENTE
+  if (rol === 'DOCENTE') {
+    where['$clase.docenteId$'] = docenteId;
+  }
 
   try {
     const lista = await Evaluaciones.findAll({ 
@@ -24,8 +36,8 @@ exports.Listar = async (req, res) => {
         {
           model: Clases,
           as: 'clase',
-          attributes: ['id', 'codigo', 'nombre'],
-          required: false
+          attributes: ['id', 'codigo', 'nombre', 'docenteId'],
+          required: rol === 'DOCENTE' // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
         },
         {
           model: Secciones,
@@ -46,6 +58,11 @@ exports.Guardar = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ msj: 'Hay errores', data: errors.array() });
+  }
+
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ msj: 'Usuario no autenticado' });
   }
 
   try {
@@ -91,7 +108,7 @@ exports.Guardar = async (req, res) => {
       
       // Si es docente, verificar que la clase le pertenezca
       const { rol, docenteId } = req.usuario;
-      if (rol === 'DOCENTE' && clase.docenteId !== docenteId) {
+      if (rol === 'DOCENTE' && clase?.docenteId !== docenteId) {
         await evaluacion.destroy();
         return res.status(403).json({ msj: 'No tiene permiso para crear evaluaciones en esta clase' });
       }
@@ -246,6 +263,11 @@ exports.Editar = async (req, res) => {
     return res.status(400).json({ msj: 'Hay errores', data: errors });
   }
 
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ msj: 'Usuario no autenticado' });
+  }
+
   const { id } = req.query;
   try {
     const evaluacionAnterior = await Evaluaciones.findByPk(id, {
@@ -318,13 +340,30 @@ exports.Eliminar = async (req, res) => {
     return res.status(400).json({ msj: 'Hay errores', data: errors });
   }
 
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ msj: 'Usuario no autenticado' });
+  }
+
   const { id } = req.query;
   try {
-    const evaluacion = await Evaluaciones.findByPk(id);
+    const evaluacion = await Evaluaciones.findByPk(id, {
+      include: [{
+        model: Clases,
+        as: 'clase',
+        attributes: ['id', 'nombre', 'docenteId']
+      }]
+    });
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
 
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && evaluacion.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ msj: 'No tiene permiso para eliminar esta evaluación' });
+    }
+
     // 🔹 Obtener información de la clase
-    const clase = evaluacion.claseId ? await Clases.findByPk(evaluacion.claseId) : null;
+    const clase = evaluacion.clase;
 
     const asignaciones = await EvaluacionesEstudiantes.findAll({
       where: { evaluacionId: id },
@@ -370,14 +409,31 @@ exports.RegistrarNota = async (req, res) => {
   const { evaluacionId, estudianteId, claseId, seccionId } = req.query;
   const { nota } = req.body;
 
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ msj: 'Usuario no autenticado' });
+  }
+
   try {
     // Validar que claseId y seccionId estén presentes
     if (!claseId || !seccionId) {
       return res.status(400).json({ msj: 'claseId y seccionId son requeridos' });
     }
 
-    const evaluacion = await Evaluaciones.findByPk(evaluacionId);
+    const evaluacion = await Evaluaciones.findByPk(evaluacionId, {
+      include: [{
+        model: Clases,
+        as: 'clase',
+        attributes: ['id', 'nombre', 'docenteId']
+      }]
+    });
     if (!evaluacion) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && evaluacion.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ msj: 'No tiene permiso para registrar notas en esta evaluación' });
+    }
 
     // Verificar que el estudiante esté inscrito en la clase y sección
     const inscripcion = await EstudiantesClases.findOne({
@@ -388,11 +444,7 @@ exports.RegistrarNota = async (req, res) => {
     }
 
     // 🔹 Obtener nombre de la clase
-    let claseNombre = 'Sin clase asignada';
-    if (evaluacion.claseId) {
-      const clase = await Clases.findByPk(evaluacion.claseId);
-      if (clase) claseNombre = clase.nombre || `Clase #${clase.id}`;
-    }
+    const claseNombre = evaluacion.clase?.nombre || 'Sin clase asignada';
 
     const valor = parseFloat(nota);
     if (isNaN(valor) || valor < 0) return res.status(400).json({ msj: 'Nota inválida' });

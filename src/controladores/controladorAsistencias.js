@@ -11,8 +11,22 @@ const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/cor
 
 // Listar todas las asistencias
 exports.listarAsistencias = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ mensaje: 'Usuario no autenticado' });
+    }
+
+    const { rol, docenteId } = req.usuario;
+    const where = {};
+
+    // Filtrar por docente si el rol es DOCENTE
+    if (rol === 'DOCENTE') {
+        where['$clase.docenteId$'] = docenteId;
+    }
+
     try {
         const asistencias = await Asistencia.findAll({
+            where,
             include: [
                 {
                     model: Estudiante,
@@ -22,7 +36,8 @@ exports.listarAsistencias = async (req, res) => {
                 {
                     model: Clase,
                     as: 'clase',
-                    attributes: ['nombre']
+                    attributes: ['nombre', 'docenteId'],
+                    required: rol === 'DOCENTE' // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
                 },
                 {
                     model: Periodo,
@@ -51,6 +66,11 @@ exports.guardarAsistencia = async (req, res) => {
         return res.status(400).json({ errores: errores.array() });
     }
 
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ mensaje: 'Usuario no autenticado' });
+    }
+
     try {
         // Normalizar entrada
         const payload = { ...req.body };
@@ -74,7 +94,7 @@ exports.guardarAsistencia = async (req, res) => {
 
     // Si es docente, verificar que la clase le pertenezca
     const { rol, docenteId } = req.usuario;
-    if (rol === 'DOCENTE' && claseExists.docenteId !== docenteId) {
+    if (rol === 'DOCENTE' && claseExists?.docenteId !== docenteId) {
       return res.status(403).json({ mensaje: 'No tiene permiso para registrar asistencias en esta clase' });
     }
 
@@ -252,6 +272,11 @@ exports.editarAsistencia = async (req, res) => {
         return res.status(400).json({ errores: errores.array() });
     }
 
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ mensaje: 'Usuario no autenticado' });
+    }
+
     try {
         const asistencia = await Asistencia.findByPk(req.query.id, {
             include: [
@@ -318,6 +343,11 @@ exports.editarAsistencia = async (req, res) => {
 
 // Eliminar asistencia
 exports.eliminarAsistencia = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ mensaje: 'Usuario no autenticado' });
+    }
+
     try {
         const asistencia = await Asistencia.findByPk(req.query.id, {
             include: [{

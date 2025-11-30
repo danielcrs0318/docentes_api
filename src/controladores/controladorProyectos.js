@@ -7,13 +7,35 @@ const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/cor
 
 /* Listar todos los proyectos con estudiantes asignados */
 exports.ListarProyectos = async (req, res) => {
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
+
+  const { rol, docenteId } = req.usuario;
+  const where = {};
+
+  // Filtrar por docente si el rol es DOCENTE
+  if (rol === 'DOCENTE') {
+    where['$clase.docenteId$'] = docenteId;
+  }
+
   try {
     const proyectos = await Proyectos.findAll({
-      include: [{
-        model: Estudiantes,
-        as: 'estudiantes',
-        attributes: ['id', 'nombre', 'correo']
-      }]
+      where,
+      include: [
+        {
+          model: Clases,
+          as: 'clase',
+          attributes: ['id', 'nombre', 'docenteId'],
+          required: rol === 'DOCENTE' // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
+        },
+        {
+          model: Estudiantes,
+          as: 'estudiantes',
+          attributes: ['id', 'nombre', 'correo']
+        }
+      ]
     });
     res.json(proyectos);
   } catch (error) {
@@ -27,16 +49,35 @@ exports.ObtenerProyecto = async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id es requerido' });
 
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
+
   try {
     const proyecto = await Proyectos.findByPk(id, {
-      include: [{
-        model: Estudiantes,
-        as: 'estudiantes',
-        attributes: ['id', 'nombre', 'correo']
-      }]
+      include: [
+        {
+          model: Clases,
+          as: 'clase',
+          attributes: ['id', 'nombre', 'docenteId']
+        },
+        {
+          model: Estudiantes,
+          as: 'estudiantes',
+          attributes: ['id', 'nombre', 'correo']
+        }
+      ]
     });
 
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && proyecto.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ error: 'No tiene permiso para ver este proyecto' });
+    }
+
     res.json(proyecto);
   } catch (error) {
     console.error('Error obtener proyecto:', error);
@@ -48,6 +89,11 @@ exports.ObtenerProyecto = async (req, res) => {
 exports.CrearProyecto = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
 
   const { nombre, descripcion, fecha_entrega, estado, claseId } = req.body;
   
@@ -61,6 +107,12 @@ exports.CrearProyecto = async (req, res) => {
     const claseExiste = await Clases.findByPk(claseId);
     if (!claseExiste) {
       return res.status(404).json({ error: `No existe una clase con id ${claseId}` });
+    }
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && claseExiste?.docenteId !== docenteId) {
+      return res.status(403).json({ error: 'No tiene permiso para crear proyectos en esta clase' });
     }
 
     const nuevo = await Proyectos.create({
@@ -112,13 +164,30 @@ exports.ActualizarProyecto = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
+
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id es requerido' });
   const { nombre, descripcion, fecha_entrega, estado, claseId } = req.body;
 
   try {
-    const proyecto = await Proyectos.findByPk(id);
+    const proyecto = await Proyectos.findByPk(id, {
+      include: [{
+        model: Clases,
+        as: 'clase',
+        attributes: ['id', 'nombre', 'docenteId']
+      }]
+    });
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && proyecto.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ error: 'No tiene permiso para actualizar este proyecto' });
+    }
 
     proyecto.nombre = nombre;
     proyecto.descripcion = (typeof descripcion !== 'undefined') ? descripcion : proyecto.descripcion;
@@ -168,11 +237,34 @@ exports.ActualizarProyecto = async (req, res) => {
 exports.EliminarProyecto = async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id es requerido' });
+
+  // Validar autenticación
+  if (!req.usuario) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
+
   try {
     const proyecto = await Proyectos.findByPk(id, {
-      include: [{ model: Estudiantes, as: 'estudiantes', attributes: ['correo', 'nombre'] }]
+      include: [
+        {
+          model: Clases,
+          as: 'clase',
+          attributes: ['id', 'nombre', 'docenteId']
+        },
+        {
+          model: Estudiantes,
+          as: 'estudiantes',
+          attributes: ['correo', 'nombre']
+        }
+      ]
     });
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && proyecto.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ error: 'No tiene permiso para eliminar este proyecto' });
+    }
 
     // Enviar correos antes de eliminar
     if (proyecto.estudiantes) {

@@ -6,8 +6,22 @@ const { Op } = require('sequelize');
 
 // Controlador para obtener todas las secciones
 exports.ListarSecciones = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
+    const { rol, docenteId } = req.usuario;
+    const where = {};
+
+    // Filtrar por docente si el rol es DOCENTE
+    if (rol === 'DOCENTE') {
+        where['$clase.docenteId$'] = docenteId;
+    }
+
     try {
         const secciones = await Secciones.findAll({
+            where,
             attributes: ['id', 'nombre', 'claseId', 'aulaId'],
             include: [
                 {
@@ -18,7 +32,8 @@ exports.ListarSecciones = async (req, res) => {
                 {
                     model: Clases,
                     as: 'clase',
-                    attributes: ['id', 'nombre']
+                    attributes: ['id', 'nombre', 'docenteId'],
+                    required: rol === 'DOCENTE' // INNER JOIN para DOCENTE
                 }
             ]
         });
@@ -36,9 +51,27 @@ exports.CrearSeccion = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const { nombre, aulaId, claseId } = req.body;
 
     try {
+        // Si es docente, verificar que la clase le pertenezca
+        if (claseId) {
+            const clase = await Clases.findByPk(claseId);
+            if (!clase) {
+                return res.status(404).json({ error: 'Clase no encontrada' });
+            }
+
+            const { rol, docenteId } = req.usuario;
+            if (rol === 'DOCENTE' && clase?.docenteId !== docenteId) {
+                return res.status(403).json({ error: 'No tiene permiso para crear secciones en esta clase' });
+            }
+        }
+
         const nuevaSeccion = await Secciones.create({
             nombre,
             aulaId,
@@ -61,13 +94,30 @@ exports.ActualizarSeccion = async (req, res) => {
         return res.status(400).json({ errors: errors.array() });
     }
 
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     const { nombre, aulaId, claseId } = req.body;
     const { id } = req.query;
 
     try {
-        const seccion = await Secciones.findByPk(id);
+        const seccion = await Secciones.findByPk(id, {
+            include: [{
+                model: Clases,
+                as: 'clase',
+                attributes: ['id', 'nombre', 'docenteId']
+            }]
+        });
         if (!seccion) {
             return res.status(404).json({ error: 'Sección no encontrada' });
+        }
+
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.usuario;
+        if (rol === 'DOCENTE' && seccion.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ error: 'No tiene permiso para actualizar esta sección' });
         }
 
         seccion.nombre = nombre;
@@ -89,10 +139,27 @@ exports.ActualizarSeccion = async (req, res) => {
 exports.EliminarSeccion = async (req, res) => {
     const { id } = req.query;
 
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     try {
-        const seccion = await Secciones.findByPk(id);
+        const seccion = await Secciones.findByPk(id, {
+            include: [{
+                model: Clases,
+                as: 'clase',
+                attributes: ['id', 'nombre', 'docenteId']
+            }]
+        });
         if (!seccion) {
             return res.status(404).json({ error: 'Sección no encontrada' });
+        }
+
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.usuario;
+        if (rol === 'DOCENTE' && seccion.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ error: 'No tiene permiso para eliminar esta sección' });
         }
 
         await seccion.destroy();
@@ -108,6 +175,11 @@ exports.EliminarSeccion = async (req, res) => {
 
 // FILTRO 1: Filtrar secciones por nombre (búsqueda parcial)
 exports.filtrarSeccionesPorNombre = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     try {
         const errores = validationResult(req);
 
@@ -120,13 +192,21 @@ exports.filtrarSeccionesPorNombre = async (req, res) => {
         }
 
         const { nombre } = req.query;
+        const { rol, docenteId } = req.usuario;
+
+        const where = {
+            nombre: {
+                [Op.like]: `%${nombre.trim()}%`
+            }
+        };
+
+        // Filtrar por docente si el rol es DOCENTE
+        if (rol === 'DOCENTE') {
+            where['$clase.docenteId$'] = docenteId;
+        }
 
         const secciones = await Secciones.findAll({
-            where: {
-                nombre: {
-                    [Op.like]: `%${nombre.trim()}%`
-                }
-            },
+            where,
             attributes: ['id', 'nombre'],
             include: [
                 {
@@ -137,7 +217,8 @@ exports.filtrarSeccionesPorNombre = async (req, res) => {
                 {
                     model: Clases,
                     as: 'clase',
-                    attributes: ['id', 'nombre']
+                    attributes: ['id', 'nombre', 'docenteId'],
+                    required: rol === 'DOCENTE'
                 }
             ],
             order: [['nombre', 'ASC']]
@@ -164,6 +245,11 @@ exports.filtrarSeccionesPorNombre = async (req, res) => {
 
 // FILTRO 2: Filtrar secciones por aula y clase
 exports.filtrarSeccionesPorAulaYClase = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
     try {
         const errores = validationResult(req);
 
@@ -176,6 +262,7 @@ exports.filtrarSeccionesPorAulaYClase = async (req, res) => {
         }
 
         const { aulaId, claseId } = req.query;
+        const { rol, docenteId } = req.usuario;
 
         // Validar que al menos un parámetro esté presente
         if (!aulaId && !claseId) {
@@ -186,6 +273,11 @@ exports.filtrarSeccionesPorAulaYClase = async (req, res) => {
         }
 
         let whereClause = {};
+
+        // Filtrar por docente si el rol es DOCENTE
+        if (rol === 'DOCENTE') {
+            whereClause['$clase.docenteId$'] = docenteId;
+        }
 
         // Construir condiciones dinámicamente
         if (aulaId) {
@@ -222,7 +314,8 @@ exports.filtrarSeccionesPorAulaYClase = async (req, res) => {
                 {
                     model: Clases,
                     as: 'clase',
-                    attributes: ['id', 'nombre', 'codigo', 'creditos'],
+                    attributes: ['id', 'nombre', 'codigo', 'creditos', 'docenteId'],
+                    required: rol === 'DOCENTE',
                     include: [
                         {
                             model: require('./../modelos/Docentes'),
