@@ -7,7 +7,7 @@ const Periodos = require('../modelos/Periodos');
 const Clases = require('../modelos/Clases');
 const Secciones = require('../modelos/Secciones');
 const { validationResult } = require('express-validator');
-const { enviarCorreo } = require('../configuraciones/correo');
+const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
 
 exports.Listar = async (req, res) => {
   // opcional: filtrar por claseId, parcialId o periodoId
@@ -87,6 +87,13 @@ exports.Guardar = async (req, res) => {
       if (!clase) {
         await evaluacion.destroy();
         return res.status(400).json({ msj: 'Clase no encontrada' });
+      }
+      
+      // Si es docente, verificar que la clase le pertenezca
+      const { rol, docenteId } = req.usuario;
+      if (rol === 'DOCENTE' && clase.docenteId !== docenteId) {
+        await evaluacion.destroy();
+        return res.status(403).json({ msj: 'No tiene permiso para crear evaluaciones en esta clase' });
       }
     }
 
@@ -196,18 +203,19 @@ exports.Guardar = async (req, res) => {
       .filter(e => e.correo)
       .map(e => {
         const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>Se te ha asignado una nueva evaluación:</p>
-          <ul>
-            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
-            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
-            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
-            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
-          </ul>
-          <p>Por favor revisa la plataforma para más detalles.</p>
+        const contenidoInterno = `
+          <h2>¡Hola ${e.nombre || 'estudiante'}! 👋</h2>
+          <p>Se te ha asignado una nueva evaluación en tu clase.</p>
+          <div class="info-box">
+            <p><strong>📝 Título:</strong> ${evaluacion.titulo}</p>
+            <p><strong>📚 Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</p>
+            <p><strong>📊 Nota máxima:</strong> ${evaluacion.notaMaxima}</p>
+            <p><strong>📅 Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString('es-ES')}</p>
+            <p><strong>⏰ Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString('es-ES')}</p>
+          </div>
+          <p>Por favor ingresa a la plataforma para ver más detalles y completar la evaluación.</p>
         `;
+        const contenido = generarPlantillaCorreo('Nueva Evaluación', contenidoInterno);
         return enviarCorreo(e.correo, asunto, contenido);
       });
 
@@ -216,7 +224,12 @@ exports.Guardar = async (req, res) => {
       if (fallos.length) console.warn(` Fallaron ${fallos.length} envíos de correo`);
     });
 
-    res.status(201).json({ evaluacion, asignadas: asignaciones.length, mensaje: 'Evaluación creada (envío de correos en proceso)' });
+    res.status(201).json({ 
+      evaluacion, 
+      asignadas: asignaciones.length, 
+      correosEnviados,
+      mensaje: 'Evaluación creada exitosamente' 
+    });
   } catch (err) {
     console.error('Error al guardar evaluación:', err);
     res.status(500).json({ msj: 'Error al guardar evaluación', error: err.message || err });
@@ -235,8 +248,20 @@ exports.Editar = async (req, res) => {
 
   const { id } = req.query;
   try {
-    const evaluacionAnterior = await Evaluaciones.findByPk(id);
+    const evaluacionAnterior = await Evaluaciones.findByPk(id, {
+      include: [{
+        model: Clases,
+        as: 'clase',
+        attributes: ['id', 'nombre', 'docenteId']
+      }]
+    });
     if (!evaluacionAnterior) return res.status(404).json({ msj: 'Evaluación no encontrada' });
+
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && evaluacionAnterior.clase?.docenteId !== docenteId) {
+      return res.status(403).json({ msj: 'No tiene permiso para editar esta evaluación' });
+    }
 
     await Evaluaciones.update({ ...req.body }, { where: { id } });
     const evaluacion = await Evaluaciones.findByPk(id);
@@ -255,16 +280,19 @@ exports.Editar = async (req, res) => {
       .map(a => {
         const e = a.estudiante;
         const asunto = `Actualización en la evaluación: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>Se ha actualizado la evaluación a la que estás asignado:</p>
-          <ul>
-            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
-            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
-            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
-            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
-          </ul>`;
+        const contenidoInterno = `
+          <h2>¡Hola ${e.nombre || 'estudiante'}! 👋</h2>
+          <p>Se ha actualizado la evaluación a la que estás asignado.</p>
+          <div class="info-box">
+            <p><strong>📝 Título:</strong> ${evaluacion.titulo}</p>
+            <p><strong>📚 Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</p>
+            <p><strong>📊 Nota máxima:</strong> ${evaluacion.notaMaxima}</p>
+            <p><strong>📅 Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString('es-ES')}</p>
+            <p><strong>⏰ Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString('es-ES')}</p>
+          </div>
+          <p>Por favor revisa la plataforma para ver los cambios.</p>
+        `;
+        const contenido = generarPlantillaCorreo('Evaluación Actualizada', contenidoInterno);
         return enviarCorreo(e.correo, asunto, contenido);
       });
 
@@ -312,10 +340,17 @@ exports.Eliminar = async (req, res) => {
       .map(a => {
         const e = a.estudiante;
         const asunto = `Evaluación eliminada: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
+        const contenidoInterno = `
+          <h2>¡Hola ${e.nombre || 'estudiante'}! 👋</h2>
           <p>La evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${clase ? clase.nombre : 'Sin clase asociada'}</strong> ha sido eliminada.</p>
-          <p>Ya no aparecerá en tu lista de evaluaciones.</p>`;
+          <div class="info-box">
+            <p><strong>📝 Evaluación:</strong> ${evaluacion.titulo}</p>
+            <p><strong>📚 Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</p>
+            <p><strong>ℹ️ Estado:</strong> Eliminada</p>
+          </div>
+          <p>Ya no aparecerá en tu lista de evaluaciones. Si tienes dudas, contacta a tu docente.</p>
+        `;
+        const contenido = generarPlantillaCorreo('Evaluación Eliminada', contenidoInterno);
         return enviarCorreo(e.correo, asunto, contenido);
       });
 
@@ -380,14 +415,17 @@ exports.RegistrarNota = async (req, res) => {
     const estudiante = registro.estudiante;
     if (estudiante?.correo) {
       const asunto = `Nota registrada - ${evaluacion.titulo}`;
-      const contenido = `
-        <h3>Hola ${estudiante.nombre || 'estudiante'},</h3>
-        <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${claseNombre}</strong>:</p>
-        <ul>
-          <li><strong>Nota obtenida:</strong> ${valor}</li>
-          <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-          <li><strong>Total del parcial:</strong> ${total.final}</li>
-        </ul>`;
+      const contenidoInterno = `
+        <h2>¡Hola ${estudiante.nombre || 'estudiante'}! 👋</h2>
+        <p>Se ha registrado tu nota para la evaluación <strong>${evaluacion.titulo}</strong> de la clase <strong>${claseNombre}</strong>.</p>
+        <div class="info-box">
+          <p><strong>📊 Nota obtenida:</strong> ${valor}</p>
+          <p><strong>📈 Nota máxima:</strong> ${evaluacion.notaMaxima}</p>
+          <p><strong>📋 Total del parcial:</strong> ${total.final}</p>
+        </div>
+        <p>Revisa la plataforma para ver más detalles de tus calificaciones.</p>
+      `;
+      const contenido = generarPlantillaCorreo('Nota Registrada', contenidoInterno);
       enviarCorreo(estudiante.correo, asunto, contenido).catch(err =>
         console.error(`Error al enviar correo a ${estudiante.correo}:`, err.message)
       );
@@ -592,18 +630,19 @@ exports.Asignar = async (req, res) => {
       .filter(e => e.correo)
       .map(e => {
         const asunto = `Nueva evaluación asignada: ${evaluacion.titulo}`;
-        const contenido = `
-          <h3>Hola ${e.nombre || 'estudiante'},</h3>
-          <p>Se te ha asignado una nueva evaluación:</p>
-          <ul>
-            <li><strong>Título:</strong> ${evaluacion.titulo}</li>
-            <li><strong>Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</li>
-            <li><strong>Nota máxima:</strong> ${evaluacion.notaMaxima}</li>
-            <li><strong>Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString()}</li>
-            <li><strong>Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString()}</li>
-          </ul>
-          <p>Por favor revisa la plataforma para más detalles.</p>
+        const contenidoInterno = `
+          <h2>¡Hola ${e.nombre || 'estudiante'}! 👋</h2>
+          <p>Se te ha asignado una nueva evaluación en tu clase.</p>
+          <div class="info-box">
+            <p><strong>📝 Título:</strong> ${evaluacion.titulo}</p>
+            <p><strong>📚 Clase:</strong> ${clase ? clase.nombre : 'Sin clase asociada'}</p>
+            <p><strong>📊 Nota máxima:</strong> ${evaluacion.notaMaxima}</p>
+            <p><strong>📅 Fecha de inicio:</strong> ${new Date(evaluacion.fechaInicio).toLocaleString('es-ES')}</p>
+            <p><strong>⏰ Fecha de cierre:</strong> ${new Date(evaluacion.fechaCierre).toLocaleString('es-ES')}</p>
+          </div>
+          <p>Por favor ingresa a la plataforma para ver más detalles y completar la evaluación.</p>
         `;
+        const contenido = generarPlantillaCorreo('Nueva Evaluación', contenidoInterno);
         return enviarCorreo(e.correo, asunto, contenido);
       });
 

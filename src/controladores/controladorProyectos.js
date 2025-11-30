@@ -3,6 +3,7 @@ const Estudiantes = require('../modelos/Estudiantes');
 const Clases = require('../modelos/Clases');
 const EstudiantesClases = require('../modelos/EstudiantesClases');
 const { validationResult } = require('express-validator');
+const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
 
 /* Listar todos los proyectos con estudiantes asignados */
 exports.ListarProyectos = async (req, res) => {
@@ -69,6 +70,36 @@ exports.CrearProyecto = async (req, res) => {
       estado: estado || 'PENDIENTE',
       claseId: claseId
     });
+
+    // Obtener estudiantes de la clase para notificar
+    const inscripciones = await EstudiantesClases.findAll({
+      where: { claseId },
+      include: [{ model: Estudiantes, as: 'estudiante', attributes: ['correo', 'nombre'] }]
+    });
+
+    // Enviar correos a estudiantes
+    inscripciones.forEach(inscripcion => {
+      if (inscripcion.estudiante?.correo) {
+        const asunto = `Nuevo proyecto asignado - ${nombre}`;
+        const contenidoInterno = `
+          <h2>¡Hola ${inscripcion.estudiante.nombre}! 👋</h2>
+          <p>Se ha creado un nuevo proyecto en tu clase.</p>
+          <div class="info-box">
+            <p><strong>📚 Clase:</strong> ${claseExiste.nombre}</p>
+            <p><strong>📝 Proyecto:</strong> ${nombre}</p>
+            ${descripcion ? `<p><strong>📖 Descripción:</strong> ${descripcion}</p>` : ''}
+            ${fecha_entrega ? `<p><strong>📅 Fecha de entrega:</strong> ${new Date(fecha_entrega).toLocaleDateString('es-ES')}</p>` : ''}
+            <p><strong>📋 Estado:</strong> ${estado || 'PENDIENTE'}</p>
+          </div>
+          <p>Por favor revisa la plataforma para más detalles y comenzar tu trabajo.</p>
+        `;
+        const contenido = generarPlantillaCorreo('Nuevo Proyecto', contenidoInterno);
+        enviarCorreo(inscripcion.estudiante.correo, asunto, contenido).catch(err => 
+          console.error(`Error enviando correo a ${inscripcion.estudiante.correo}:`, err.message)
+        );
+      }
+    });
+
     res.status(201).json({ message: 'Proyecto creado', proyecto: nuevo });
   } catch (error) {
     console.error('Error crear proyecto:', error);
@@ -96,6 +127,36 @@ exports.ActualizarProyecto = async (req, res) => {
     proyecto.claseId = (typeof claseId !== 'undefined') ? claseId : proyecto.claseId;
 
     await proyecto.save();
+
+    // Obtener estudiantes asignados al proyecto
+    const proyectoConEstudiantes = await Proyectos.findByPk(id, {
+      include: [{ model: Estudiantes, as: 'estudiantes', attributes: ['correo', 'nombre'] }]
+    });
+
+    // Enviar correos a estudiantes asignados
+    if (proyectoConEstudiantes?.estudiantes) {
+      proyectoConEstudiantes.estudiantes.forEach(estudiante => {
+        if (estudiante.correo) {
+          const asunto = `Proyecto actualizado - ${nombre}`;
+          const contenidoInterno = `
+            <h2>¡Hola ${estudiante.nombre}! 👋</h2>
+            <p>Se ha actualizado el proyecto <strong>${nombre}</strong> en el que estás trabajando.</p>
+            <div class="info-box">
+              <p><strong>📝 Proyecto:</strong> ${nombre}</p>
+              ${descripcion ? `<p><strong>📖 Descripción:</strong> ${descripcion}</p>` : ''}
+              ${fecha_entrega ? `<p><strong>📅 Fecha de entrega:</strong> ${new Date(fecha_entrega).toLocaleDateString('es-ES')}</p>` : ''}
+              <p><strong>📋 Estado:</strong> ${estado || 'PENDIENTE'}</p>
+            </div>
+            <p>Por favor revisa la plataforma para ver los cambios completos.</p>
+          `;
+          const contenido = generarPlantillaCorreo('Proyecto Actualizado', contenidoInterno);
+          enviarCorreo(estudiante.correo, asunto, contenido).catch(err => 
+            console.error(`Error enviando correo a ${estudiante.correo}:`, err.message)
+          );
+        }
+      });
+    }
+
     res.json({ message: 'Proyecto actualizado', proyecto });
   } catch (error) {
     console.error('Error actualizar proyecto:', error);
@@ -108,8 +169,33 @@ exports.EliminarProyecto = async (req, res) => {
   const { id } = req.query;
   if (!id) return res.status(400).json({ error: 'id es requerido' });
   try {
-    const proyecto = await Proyectos.findByPk(id);
+    const proyecto = await Proyectos.findByPk(id, {
+      include: [{ model: Estudiantes, as: 'estudiantes', attributes: ['correo', 'nombre'] }]
+    });
     if (!proyecto) return res.status(404).json({ error: 'Proyecto no encontrado' });
+
+    // Enviar correos antes de eliminar
+    if (proyecto.estudiantes) {
+      proyecto.estudiantes.forEach(estudiante => {
+        if (estudiante.correo) {
+          const asunto = `Proyecto eliminado - ${proyecto.nombre}`;
+          const contenidoInterno = `
+            <h2>¡Hola ${estudiante.nombre}! 👋</h2>
+            <p>El proyecto <strong>${proyecto.nombre}</strong> ha sido eliminado.</p>
+            <div class="info-box">
+              <p><strong>📝 Proyecto:</strong> ${proyecto.nombre}</p>
+              <p><strong>ℹ️ Estado:</strong> Eliminado</p>
+            </div>
+            <p>Por favor contacta a tu docente si tienes alguna duda sobre esta acción.</p>
+          `;
+          const contenido = generarPlantillaCorreo('Proyecto Eliminado', contenidoInterno);
+          enviarCorreo(estudiante.correo, asunto, contenido).catch(err => 
+            console.error(`Error enviando correo a ${estudiante.correo}:`, err.message)
+          );
+        }
+      });
+    }
+
     await proyecto.destroy();
     res.json({ message: 'Proyecto eliminado', proyecto });
   } catch (error) {
@@ -183,6 +269,26 @@ exports.AsignarProyecto = async (req, res) => {
       if (!existe) {
         await proyecto.addEstudiante(est);
         asignados.push(estId);
+        
+        // Enviar correo de notificación
+        if (est.correo) {
+          const asunto = `Proyecto asignado - ${proyecto.nombre}`;
+          const contenidoInterno = `
+            <h2>¡Hola ${est.nombre}! 👋</h2>
+            <p>Se te ha asignado un nuevo proyecto.</p>
+            <div class="info-box">
+              <p><strong>📝 Proyecto:</strong> ${proyecto.nombre}</p>
+              ${proyecto.descripcion ? `<p><strong>📖 Descripción:</strong> ${proyecto.descripcion}</p>` : ''}
+              ${proyecto.fecha_entrega ? `<p><strong>📅 Fecha de entrega:</strong> ${new Date(proyecto.fecha_entrega).toLocaleDateString('es-ES')}</p>` : ''}
+              <p><strong>📋 Estado:</strong> ${proyecto.estado}</p>
+            </div>
+            <p>Por favor revisa la plataforma para más detalles y comenzar tu trabajo.</p>
+          `;
+          const contenido = generarPlantillaCorreo('Proyecto Asignado', contenidoInterno);
+          enviarCorreo(est.correo, asunto, contenido).catch(err => 
+            console.error(`Error enviando correo a ${est.correo}:`, err.message)
+          );
+        }
       } else {
         rechazados.push({ estudianteId: estId, razon: 'Ya estaba asignado al proyecto' });
       }

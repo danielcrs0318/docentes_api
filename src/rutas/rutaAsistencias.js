@@ -209,7 +209,13 @@ router.put('/editar', [
     validarToken,
     verificarRol(['ADMIN', 'DOCENTE']),
     query('id').isInt().withMessage('ID inválido'),
-    ...validacionesAsistencia
+    body('estudianteId').optional().isInt().withMessage('ID de estudiante inválido'),
+    body('periodoId').optional().isInt().withMessage('ID de periodo inválido'),
+    body('parcialId').optional().isInt().withMessage('ID de parcial inválido'),
+    body('claseId').optional().isInt().withMessage('ID de clase inválido'),
+    body('fecha').optional().isISO8601().withMessage('Fecha inválida'),
+    body('estado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado inválido'),
+    body('descripcion').optional().isString().isLength({ max: 255 }).withMessage('Descripción inválida')
 ], controladorAsistencias.editarAsistencia);
 
 /**

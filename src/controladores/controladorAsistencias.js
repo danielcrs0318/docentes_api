@@ -7,6 +7,7 @@ const Clase = require('../modelos/Clases');
 const Periodo = require('../modelos/Periodos');
 const Parcial = require('../modelos/Parciales');
 const Secciones = require('../modelos/Secciones');
+const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
 
 // Listar todas las asistencias
 exports.listarAsistencias = async (req, res) => {
@@ -71,8 +72,39 @@ exports.guardarAsistencia = async (req, res) => {
     const claseExists = await Clase.findByPk(payload.claseId);
     if (!claseExists) return res.status(400).json({ mensaje: `Clase con id ${payload.claseId} no encontrado` });
 
+    // Si es docente, verificar que la clase le pertenezca
+    const { rol, docenteId } = req.usuario;
+    if (rol === 'DOCENTE' && claseExists.docenteId !== docenteId) {
+      return res.status(403).json({ mensaje: 'No tiene permiso para registrar asistencias en esta clase' });
+    }
+
     const asistencia = await Asistencia.create(payload);
-    return res.status(201).json(asistencia);
+
+    // Enviar correo de notificación al estudiante
+    if (estudiante.correo) {
+      const asunto = `Asistencia registrada - ${claseExists.nombre}`;
+      const contenidoInterno = `
+        <h2>¡Hola ${estudiante.nombre}! 👋</h2>
+        <p>Se ha registrado tu asistencia para la clase de hoy.</p>
+        <div class="info-box">
+          <p><strong>📚 Clase:</strong> ${claseExists.nombre}</p>
+          <p><strong>✅ Estado:</strong> ${asistencia.estado}</p>
+          <p><strong>🗓️ Fecha:</strong> ${new Date(asistencia.fecha).toLocaleDateString('es-ES')}</p>
+          ${asistencia.descripcion ? `<p><strong>📝 Descripción:</strong> ${asistencia.descripcion}</p>` : ''}
+        </div>
+        <p>Revisa la plataforma para ver tu historial completo de asistencias.</p>
+      `;
+      const contenido = generarPlantillaCorreo('Asistencia Registrada', contenidoInterno);
+      enviarCorreo(estudiante.correo, asunto, contenido).catch(err => 
+        console.error(`Error enviando correo a ${estudiante.correo}:`, err.message)
+      );
+    }
+
+    return res.status(201).json({ 
+      asistencia, 
+      correoEnviado: !!estudiante.correo,
+      mensaje: 'Asistencia registrada exitosamente'
+    });
     } catch (error) {
         console.error('Error al crear asistencia:', error);
         // Manejar errores de validación de Sequelize
@@ -221,25 +253,87 @@ exports.editarAsistencia = async (req, res) => {
     }
 
     try {
-        const asistencia = await Asistencia.findByPk(req.query.id);
+        const asistencia = await Asistencia.findByPk(req.query.id, {
+            include: [
+                {
+                    model: Estudiante,
+                    as: 'estudiante',
+                    attributes: ['id', 'nombre', 'correo']
+                },
+                {
+                    model: Clase,
+                    as: 'clase',
+                    attributes: ['id', 'nombre', 'docenteId']
+                }
+            ]
+        });
         if (!asistencia) {
             return res.status(404).json({ mensaje: 'Asistencia no encontrada' });
         }
 
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.usuario;
+        if (rol === 'DOCENTE' && asistencia.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ mensaje: 'No tiene permiso para editar esta asistencia' });
+        }
+
+        const estadoAnterior = asistencia.estado;
+        const nombreClase = asistencia.clase?.nombre || 'Clase';
+        const nombreEstudiante = asistencia.estudiante?.nombre || '';
+        const correoEstudiante = asistencia.estudiante?.correo || '';
+        
         await asistencia.update(req.body);
-        res.json(asistencia);
+
+        // Enviar correo si el estudiante tiene email y cambió el estado
+        if (correoEstudiante && estadoAnterior !== asistencia.estado) {
+            const asunto = `Asistencia actualizada - ${nombreClase}`;
+            const contenidoInterno = `
+                <h2>¡Hola ${nombreEstudiante}! 👋</h2>
+                <p>Se ha actualizado tu asistencia para la clase <strong>${nombreClase}</strong>.</p>
+                <div class="info-box">
+                    <p><strong>🔁 Estado anterior:</strong> ${estadoAnterior}</p>
+                    <p><strong>✅ Estado nuevo:</strong> ${asistencia.estado}</p>
+                    <p><strong>🗓️ Fecha:</strong> ${new Date(asistencia.fecha).toLocaleDateString('es-ES')}</p>
+                    ${asistencia.descripcion ? `<p><strong>📝 Descripción:</strong> ${asistencia.descripcion}</p>` : ''}
+                </div>
+                <p>Por favor revisa la plataforma para más detalles.</p>
+            `;
+            const contenido = generarPlantillaCorreo('Asistencia Actualizada', contenidoInterno);
+            enviarCorreo(correoEstudiante, asunto, contenido).catch(err => 
+                console.error(`Error enviando correo a ${correoEstudiante}:`, err.message)
+            );
+        }
+
+        res.json({ 
+            asistencia,
+            correoEnviado: !!(correoEstudiante && estadoAnterior !== asistencia.estado),
+            mensaje: 'Asistencia actualizada exitosamente'
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ mensaje: 'Error al actualizar la asistencia' });
+        console.error('Error en editarAsistencia:', error);
+        console.error('Stack:', error.stack);
+        res.status(500).json({ mensaje: 'Error al actualizar la asistencia', detalles: error.message });
     }
 };
 
 // Eliminar asistencia
 exports.eliminarAsistencia = async (req, res) => {
     try {
-        const asistencia = await Asistencia.findByPk(req.query.id);
+        const asistencia = await Asistencia.findByPk(req.query.id, {
+            include: [{
+                model: Clase,
+                as: 'clase',
+                attributes: ['id', 'docenteId']
+            }]
+        });
         if (!asistencia) {
             return res.status(404).json({ mensaje: 'Asistencia no encontrada' });
+        }
+
+        // Si es docente, verificar que la clase le pertenezca
+        const { rol, docenteId } = req.usuario;
+        if (rol === 'DOCENTE' && asistencia.clase?.docenteId !== docenteId) {
+            return res.status(403).json({ mensaje: 'No tiene permiso para eliminar esta asistencia' });
         }
 
         await asistencia.destroy();

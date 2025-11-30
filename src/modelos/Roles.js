@@ -11,8 +11,7 @@ const Roles = db.define(
         },
         nombre: {
             type: DataTypes.ENUM('ADMIN', 'DOCENTE', 'ESTUDIANTE'),
-            allowNull: false,
-            unique: true
+            allowNull: false
         },
         descripcion: {
             type: DataTypes.STRING(200),
