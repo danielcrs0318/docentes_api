@@ -5,9 +5,23 @@ const { Op } = require('sequelize');
 
 // Controlador para obtener todas las clases
 exports.ListarClases = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
+    const { rol, docenteId } = req.usuario;
+    const where = {};
+
+    // Filtrar por docente si el rol es DOCENTE
+    if (rol === 'DOCENTE') {
+        where.docenteId = docenteId;
+    }
+
     try {
         const clases = await Clases.findAll({
-            attributes: ['id', 'codigo', 'nombre', 'diaSemana'],
+            where,
+            attributes: ['id', 'codigo', 'nombre', 'diaSemana', 'docenteId', 'creditos'],
             include: [{
                 model: Seccion,
                 as: 'secciones',

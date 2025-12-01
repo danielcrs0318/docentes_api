@@ -3,6 +3,7 @@ const Secciones = require('../modelos/Secciones');
 const Clases = require('../modelos/Clases');
 const EstudiantesClases = require('../modelos/EstudiantesClases');
 const Periodos = require('../modelos/Periodos');
+const Parciales = require('../modelos/Parciales');
 const Usuarios = require('../modelos/Usuarios');
 const Aulas = require('../modelos/Aulas');
 const { validationResult } = require('express-validator');
@@ -27,6 +28,47 @@ const generarNombrePeriodo = (fechaInicio) => {
     return `${prefijoI}P${yy}`;
 };
 
+// Helper: calcular parciales automáticamente (3 parciales de 4 semanas cada uno)
+const generarParcialesAutomaticos = (fechaInicio, fechaFin) => {
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    
+    // Validar fechas
+    if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+        throw new Error('Fechas inválidas');
+    }
+
+    const parciales = [];
+    const SEMANAS_POR_PARCIAL = 4;
+    const DIAS_POR_SEMANA = 7;
+    const DIAS_POR_PARCIAL = SEMANAS_POR_PARCIAL * DIAS_POR_SEMANA;
+
+    for (let i = 1; i <= 3; i++) {
+        const inicioParcial = new Date(inicio);
+        inicioParcial.setDate(inicio.getDate() + ((i - 1) * DIAS_POR_PARCIAL));
+
+        const finParcial = new Date(inicioParcial);
+        finParcial.setDate(inicioParcial.getDate() + DIAS_POR_PARCIAL - 1);
+
+        // Si es el último parcial, usar la fecha fin del periodo
+        if (i === 3) {
+            parciales.push({
+                nombre: `Parcial ${i}`,
+                fechaInicio: inicioParcial,
+                fechaFin: fin
+            });
+        } else {
+            parciales.push({
+                nombre: `Parcial ${i}`,
+                fechaInicio: inicioParcial,
+                fechaFin: finParcial
+            });
+        }
+    }
+
+    return parciales;
+};
+
 // Helper: generar dias de la semana según créditos
 const generarDiasPorCreditos = (creditos) => {
     if (!creditos) return [];
@@ -38,19 +80,31 @@ const generarDiasPorCreditos = (creditos) => {
 
 // Controlador para obtener todos los estudiantes
 exports.ListarEstudiantes = async (req, res) => {
+    // Validar autenticación
+    if (!req.usuario) {
+        return res.status(401).json({ error: 'Usuario no autenticado' });
+    }
+
+    const { rol, docenteId } = req.usuario;
+
     try {
-        const estudiantes = await Estudiantes.findAll({
+        // Construir opciones de consulta base
+        const queryOptions = {
             attributes: ['id', 'nombre', 'correo', 'estado'],
             include: [
                 {
                     model: EstudiantesClases,
                     as: 'inscripciones',
                     attributes: ['id', 'fechaInscripcion'],
+                    // Si es DOCENTE, solo traer inscripciones de sus clases
+                    required: rol === 'DOCENTE', // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
                     include: [
                         {
                             model: Clases,
                             as: 'clase',
-                            attributes: ['id', 'codigo', 'nombre']
+                            attributes: ['id', 'codigo', 'nombre', 'docenteId'],
+                            required: rol === 'DOCENTE',
+                            where: rol === 'DOCENTE' ? { docenteId: docenteId } : undefined
                         },
                         {
                             model: Secciones,
@@ -60,7 +114,10 @@ exports.ListarEstudiantes = async (req, res) => {
                     ]
                 }
             ]
-        });
+        };
+
+        const estudiantes = await Estudiantes.findAll(queryOptions);
+        
         res.json(estudiantes);
     } catch (error) {
         console.error('Error al listar estudiantes:', error);
@@ -252,6 +309,19 @@ exports.CargarDesdeExcel = async (req, res) => {
                     fechaFin: fechaFinDate
                 });
                 periodoCreado = true;
+
+                // 🔄 Crear parciales automáticamente
+                console.log('🔄 Generando 3 parciales automáticamente para el nuevo periodo...');
+                const parcialesGenerados = generarParcialesAutomaticos(fechaInicioDate, fechaFinDate);
+                
+                const nuevosParciales = parcialesGenerados.map(p => ({
+                    ...p,
+                    periodoId: periodo.id
+                }));
+
+                await Parciales.bulkCreate(nuevosParciales);
+                console.log(`✅ ${nuevosParciales.length} parciales creados automáticamente:`, 
+                    parcialesGenerados.map(p => `${p.nombre}: ${p.fechaInicio.toISOString().split('T')[0]} - ${p.fechaFin.toISOString().split('T')[0]}`).join(', '));
             }
 
             else {
@@ -272,16 +342,10 @@ exports.CargarDesdeExcel = async (req, res) => {
             return res.status(400).json({ error: 'Los creditos deben ser 3 o 4 cuando se proporcionan' });
         }
 
-        // Obtener docenteId desde el token (req.usuario.id)
-        let docenteIdFromToken = null;
-        try {
-            if (req.usuario && req.usuario.id) {
-                const usuarioLog = await Usuarios.findByPk(req.usuario.id);
-                if (usuarioLog && usuarioLog.docenteId) docenteIdFromToken = usuarioLog.docenteId;
-            }
-        } catch (err) {
-            console.error('No se pudo obtener usuario desde token:', err.message);
-        }
+        // Obtener docenteId desde el token (req.usuario ya tiene el docenteId)
+        const docenteIdFromToken = req.usuario?.docenteId || null;
+        console.log('🔍 DocenteId desde token:', docenteIdFromToken);
+        console.log('🔍 Usuario completo desde token:', req.usuario);
 
         // Buscar o crear la clase
         let clase = await Clases.findOne({ where: { codigo: codigoClase } });
@@ -297,7 +361,9 @@ exports.CargarDesdeExcel = async (req, res) => {
                 docenteId: docenteIdFromToken || null
             });
             claseCreada = true;
+            console.log('✅ Clase creada con docenteId:', clase.docenteId);
         } else {
+            console.log('🔍 Clase existente encontrada. docenteId actual:', clase.docenteId);
             // Si la clase existe, rellenar campos vacíos con lo provisto
             let necesitaGuardar = false;
             if ((!clase.creditos || clase.creditos === null) && creditosBody) {
@@ -306,10 +372,14 @@ exports.CargarDesdeExcel = async (req, res) => {
                 necesitaGuardar = true;
             }
             if ((!clase.docenteId || clase.docenteId === null) && docenteIdFromToken) {
+                console.log('🔄 Actualizando docenteId de la clase a:', docenteIdFromToken);
                 clase.docenteId = docenteIdFromToken;
                 necesitaGuardar = true;
             }
-            if (necesitaGuardar) await clase.save();
+            if (necesitaGuardar) {
+                await clase.save();
+                console.log('✅ Clase actualizada con docenteId:', clase.docenteId);
+            }
         }
 
         // Buscar o crear la sección
@@ -514,11 +584,14 @@ exports.CargarDesdeExcel = async (req, res) => {
                 creado: periodoCreado
             } : null,
             clase: {
+                id: clase.id,
                 codigo: clase.codigo,
                 nombre: clase.nombre,
+                docenteId: clase.docenteId,
                 creada: claseCreada
             },
             seccion: seccion ? {
+                id: seccion.id,
                 nombre: seccion.nombre,
                 aula: seccion.aulaId,
                 creada: seccionCreada
@@ -532,7 +605,16 @@ exports.CargarDesdeExcel = async (req, res) => {
             estudiantesCreados: estudiantesCreados,
             inscripcionesCreadas: inscripcionesCreadas,
             erroresValidacion: errores,
-            erroresGuardado: estudiantesConError
+            erroresGuardado: estudiantesConError,
+            debug: {
+                docenteIdFromToken: docenteIdFromToken,
+                claseDocenteId: clase.docenteId,
+                usuario: req.usuario ? {
+                    id: req.usuario.id,
+                    rol: req.usuario.rol,
+                    docenteId: req.usuario.docenteId
+                } : null
+            }
         });
 
     } catch (error) {

@@ -12,10 +12,16 @@ exports.ListarSecciones = async (req, res) => {
     }
 
     const { rol, docenteId } = req.usuario;
+    const { claseId } = req.query; // Permitir filtrar por claseId desde el frontend
     const where = {};
 
-    // Filtrar por docente si el rol es DOCENTE
-    if (rol === 'DOCENTE') {
+    // Si se proporciona claseId, filtrar por esa clase específica
+    if (claseId) {
+        where.claseId = claseId;
+    }
+
+    // Filtrar por docente si el rol es DOCENTE (solo si no se especificó claseId)
+    if (rol === 'DOCENTE' && !claseId) {
         where['$clase.docenteId$'] = docenteId;
     }
 
@@ -33,10 +39,22 @@ exports.ListarSecciones = async (req, res) => {
                     model: Clases,
                     as: 'clase',
                     attributes: ['id', 'nombre', 'docenteId'],
-                    required: rol === 'DOCENTE' // INNER JOIN para DOCENTE
+                    required: true // Siempre requerir la clase
                 }
             ]
         });
+
+        // Si es DOCENTE y se especificó claseId, validar que la clase le pertenezca
+        if (rol === 'DOCENTE' && claseId && secciones.length > 0) {
+            const primeraSeccion = secciones[0];
+            if (primeraSeccion.clase && primeraSeccion.clase.docenteId !== docenteId) {
+                return res.status(403).json({ 
+                    error: 'No tiene permiso para ver secciones de esta clase',
+                    secciones: []
+                });
+            }
+        }
+
         res.json(secciones);
     } catch (error) {
         console.error('Error al listar secciones:', error);

@@ -66,6 +66,47 @@ exports.ListarPeriodos = async (req, res) => {
   }
 };
 
+// Helper: calcular parciales automáticamente (3 parciales de 4 semanas cada uno)
+const generarParcialesAutomaticos = (fechaInicio, fechaFin) => {
+  const inicio = new Date(fechaInicio);
+  const fin = new Date(fechaFin);
+  
+  // Validar fechas
+  if (isNaN(inicio.getTime()) || isNaN(fin.getTime())) {
+    throw new Error('Fechas inválidas');
+  }
+
+  const parciales = [];
+  const SEMANAS_POR_PARCIAL = 4;
+  const DIAS_POR_SEMANA = 7;
+  const DIAS_POR_PARCIAL = SEMANAS_POR_PARCIAL * DIAS_POR_SEMANA;
+
+  for (let i = 1; i <= 3; i++) {
+    const inicioParcial = new Date(inicio);
+    inicioParcial.setDate(inicio.getDate() + ((i - 1) * DIAS_POR_PARCIAL));
+
+    const finParcial = new Date(inicioParcial);
+    finParcial.setDate(inicioParcial.getDate() + DIAS_POR_PARCIAL - 1);
+
+    // Si es el último parcial, usar la fecha fin del periodo
+    if (i === 3) {
+      parciales.push({
+        nombre: `Parcial ${i}`,
+        fechaInicio: inicioParcial,
+        fechaFin: fin
+      });
+    } else {
+      parciales.push({
+        nombre: `Parcial ${i}`,
+        fechaInicio: inicioParcial,
+        fechaFin: finParcial
+      });
+    }
+  }
+
+  return parciales;
+};
+
 exports.CrearPeriodo = async (req, res) => {
   const errores = validationResult(req).errors;
 
@@ -81,7 +122,7 @@ exports.CrearPeriodo = async (req, res) => {
   try {
     const { parciales, ...datosPeriodo } = req.body;
 
-       // Generar nombre automático si no fue proporcionado
+    // Generar nombre automático si no fue proporcionado
     if (!datosPeriodo.nombre) {
       const nombreGenerado = generarNombrePeriodo(datosPeriodo.fechaInicio);
       if (nombreGenerado) datosPeriodo.nombre = nombreGenerado;
@@ -89,22 +130,38 @@ exports.CrearPeriodo = async (req, res) => {
 
     const periodo = await Periodos.create(datosPeriodo);
 
-    console.log("Periodo creado:", periodo.dataValues);
+    console.log("✅ Periodo creado:", periodo.dataValues);
 
-    if (parciales && parciales.length > 0) {
-      const nuevosParciales = parciales.map(p => ({
+    // Si vienen parciales en el body, usarlos; si no, generar automáticamente
+    let parcialesACrear = parciales;
+    
+    if (!parciales || parciales.length === 0) {
+      console.log("🔄 Generando 3 parciales automáticamente...");
+      parcialesACrear = generarParcialesAutomaticos(
+        datosPeriodo.fechaInicio, 
+        datosPeriodo.fechaFin
+      );
+      console.log("📅 Parciales generados:", parcialesACrear);
+    }
+
+    if (parcialesACrear && parcialesACrear.length > 0) {
+      const nuevosParciales = parcialesACrear.map(p => ({
         ...p,
         periodoId: periodo.id
       }));
 
       await Parciales.bulkCreate(nuevosParciales);
-      console.log("Parciales creados correctamente");
+      console.log(`✅ ${nuevosParciales.length} parciales creados correctamente`);
     }
 
-    res.json({ msj: "Periodo guardado correctamente" });
+    res.json({ 
+      msj: "Periodo guardado correctamente", 
+      periodoId: periodo.id,
+      parcialesCreados: parcialesACrear ? parcialesACrear.length : 0
+    });
 
   } catch (error) {
-    console.error("Error al guardar el periodo:", error);
+    console.error("❌ Error al guardar el periodo:", error);
     res.status(500).json({ msj: "Error al guardar el periodo", error: error.message });
   }
 };
