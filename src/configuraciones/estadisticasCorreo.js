@@ -1,5 +1,5 @@
-// Sistema de estadísticas para correos electrónicos
-let estadisticas = {
+// Sistema de estadísticas para correos electrónicos (por docente)
+let estadisticasGlobales = {
     enviados: 0,
     fallidos: 0,
     enCola: 0,
@@ -7,48 +7,100 @@ let estadisticas = {
     errores: []
 };
 
-// Registrar un correo enviado exitosamente
-const registrarEnviado = () => {
-    estadisticas.enviados++;
-    estadisticas.ultimoEnvio = new Date().toISOString();
-};
+// Estadísticas por docente (Map: docenteId -> estadísticas)
+const estadisticasPorDocente = new Map();
 
-// Registrar un correo fallido
-const registrarFallido = (error) => {
-    estadisticas.fallidos++;
-    estadisticas.errores.push({
-        mensaje: error.message || 'Error desconocido',
-        fecha: new Date().toISOString()
-    });
-    
-    // Mantener solo los últimos 10 errores
-    if (estadisticas.errores.length > 10) {
-        estadisticas.errores = estadisticas.errores.slice(-10);
+// Inicializar estadísticas para un docente si no existe
+const inicializarDocente = (docenteId) => {
+    if (!estadisticasPorDocente.has(docenteId)) {
+        estadisticasPorDocente.set(docenteId, {
+            enviados: 0,
+            fallidos: 0,
+            enCola: 0,
+            ultimoEnvio: null,
+            errores: []
+        });
     }
 };
 
-// Obtener estadísticas actuales
-const obtenerEstadisticas = () => {
-    const total = estadisticas.enviados + estadisticas.fallidos;
+// Registrar un correo enviado exitosamente
+const registrarEnviado = (docenteId = null) => {
+    estadisticasGlobales.enviados++;
+    estadisticasGlobales.ultimoEnvio = new Date().toISOString();
+    
+    if (docenteId) {
+        inicializarDocente(docenteId);
+        const stats = estadisticasPorDocente.get(docenteId);
+        stats.enviados++;
+        stats.ultimoEnvio = new Date().toISOString();
+    }
+};
+
+// Registrar un correo fallido
+const registrarFallido = (error, docenteId = null) => {
+    const errorObj = {
+        mensaje: error.message || 'Error desconocido',
+        fecha: new Date().toISOString()
+    };
+    
+    estadisticasGlobales.fallidos++;
+    estadisticasGlobales.errores.push(errorObj);
+    
+    // Mantener solo los últimos 10 errores globales
+    if (estadisticasGlobales.errores.length > 10) {
+        estadisticasGlobales.errores = estadisticasGlobales.errores.slice(-10);
+    }
+    
+    if (docenteId) {
+        inicializarDocente(docenteId);
+        const stats = estadisticasPorDocente.get(docenteId);
+        stats.fallidos++;
+        stats.errores.push(errorObj);
+        
+        // Mantener solo los últimos 10 errores por docente
+        if (stats.errores.length > 10) {
+            stats.errores = stats.errores.slice(-10);
+        }
+    }
+};
+
+// Obtener estadísticas (globales o por docente)
+const obtenerEstadisticas = (docenteId = null) => {
+    const stats = docenteId && estadisticasPorDocente.has(docenteId) 
+        ? estadisticasPorDocente.get(docenteId)
+        : estadisticasGlobales;
+    
+    const total = stats.enviados + stats.fallidos;
     const porcentajeExito = total > 0 
-        ? Math.round((estadisticas.enviados / total) * 100) 
+        ? Math.round((stats.enviados / total) * 100) 
         : 0;
     
     return {
-        ...estadisticas,
+        ...stats,
         porcentajeExito
     };
 };
 
-// Limpiar estadísticas
-const limpiarEstadisticas = () => {
-    estadisticas = {
-        enviados: 0,
-        fallidos: 0,
-        enCola: 0,
-        ultimoEnvio: null,
-        errores: []
-    };
+// Limpiar estadísticas (globales o por docente)
+const limpiarEstadisticas = (docenteId = null) => {
+    if (docenteId) {
+        estadisticasPorDocente.set(docenteId, {
+            enviados: 0,
+            fallidos: 0,
+            enCola: 0,
+            ultimoEnvio: null,
+            errores: []
+        });
+    } else {
+        estadisticasGlobales = {
+            enviados: 0,
+            fallidos: 0,
+            enCola: 0,
+            ultimoEnvio: null,
+            errores: []
+        };
+        estadisticasPorDocente.clear();
+    }
 };
 
 module.exports = {

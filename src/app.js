@@ -20,6 +20,7 @@ const modeloEstudiantesClases = require('./modelos/EstudiantesClases');
 const modeloAsistencias = require('./modelos/Asistencia');
 const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
+const modeloAsistenciaImagenes = require('./modelos/AsistenciaImagenes');
 const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
 const modeloGrupos = require('./modelos/Grupos');
@@ -103,6 +104,10 @@ db.authenticate().then(async (data) => {
   // parciales - Asistencias
   modeloParciales.hasMany(modeloAsistencias, { foreignKey: 'parcialId', as: 'asistencias' });
   modeloAsistencias.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
+
+  // Asistencias - AsistenciaImagenes (relación uno a muchos)
+  modeloAsistencias.hasMany(modeloAsistenciaImagenes, { foreignKey: 'asistenciaId', as: 'imagenes' });
+  modeloAsistenciaImagenes.belongsTo(modeloAsistencias, { foreignKey: 'asistenciaId', as: 'asistencia' });
 
   // Proyectos - Estudiantes (CORREGIDO: relación muchos a muchos)
   modeloProyectos.belongsToMany(modeloEstudiantes, {

@@ -3,6 +3,7 @@ const { body, param, query } = require('express-validator');
 const controladorAsistencias = require('../controladores/controladorAsistencias');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { uploadImagenExcusa } = require('../configuraciones/archivos');
 
 /**
  * @swagger
@@ -62,10 +63,10 @@ const validacionesAsistenciaMultiple = [
     body('parcialId').isInt().withMessage('ID de parcial inválido'),
     body('claseId').optional().isInt().withMessage('ID de clase inválido'),
     body('seccionId').optional().isInt().withMessage('ID de sección inválido'),
-    body('estadoPredeterminado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado predeterminado inválido'),
+    body('estadoPredeterminado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado predeterminado inválido'),
     body('estudiantes').optional().isArray().withMessage('El campo estudiantes debe ser un array'),
     body('estudiantes.*.id').optional().isInt().withMessage('ID de estudiante inválido'),
-    body('estudiantes.*.estado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado inválido'),
+    body('estudiantes.*.estado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado inválido'),
     body('estudiantes.*.descripcion').optional().isString().isLength({ max: 255 }).withMessage('Descripción inválida')
 ];
 
@@ -76,7 +77,7 @@ const validacionesAsistencia = [
     body('parcialId').isInt().withMessage('ID de parcial inválido'),
     body('claseId').isInt().withMessage('ID de clase inválido'),
     body('fecha').isISO8601().withMessage('Fecha inválida'),
-    body('estado').isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado inválido'),
+    body('estado').isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado inválido'),
     body('descripcion').optional().isString().isLength({ max: 255 }).withMessage('Descripción inválida')
 ];
 
@@ -174,7 +175,7 @@ router.post('/guardar-multiple', validarToken, verificarRol(['ADMIN', 'DOCENTE']
  *       500:
  *         description: Error del servidor
  */
-router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), validacionesAsistencia, controladorAsistencias.guardarAsistencia);
+router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), uploadImagenExcusa, validacionesAsistencia, controladorAsistencias.guardarAsistencia);
 
 /**
  * @swagger
@@ -208,13 +209,14 @@ router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIA
 router.put('/editar', [
     validarToken,
     verificarRol(['ADMIN', 'DOCENTE']),
+    uploadImagenExcusa,
     query('id').isInt().withMessage('ID inválido'),
     body('estudianteId').optional().isInt().withMessage('ID de estudiante inválido'),
     body('periodoId').optional().isInt().withMessage('ID de periodo inválido'),
     body('parcialId').optional().isInt().withMessage('ID de parcial inválido'),
     body('claseId').optional().isInt().withMessage('ID de clase inválido'),
     body('fecha').optional().isISO8601().withMessage('Fecha inválida'),
-    body('estado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA']).withMessage('Estado inválido'),
+    body('estado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado inválido'),
     body('descripcion').optional().isString().isLength({ max: 255 }).withMessage('Descripción inválida')
 ], controladorAsistencias.editarAsistencia);
 

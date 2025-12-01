@@ -2,12 +2,15 @@ const { validationResult } = require('express-validator');
 const { Op } = require('sequelize');
 const db = require('../configuraciones/db');
 const Asistencia = require('../modelos/Asistencia');
+const AsistenciaImagen = require('../modelos/AsistenciaImagenes');
 const Estudiante = require('../modelos/Estudiantes');
 const Clase = require('../modelos/Clases');
 const Periodo = require('../modelos/Periodos');
 const Parcial = require('../modelos/Parciales');
 const Secciones = require('../modelos/Secciones');
 const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
+const path = require('path');
+const fs = require('fs');
 
 // Listar todas las asistencias
 exports.listarAsistencias = async (req, res) => {
@@ -48,6 +51,11 @@ exports.listarAsistencias = async (req, res) => {
                     model: Parcial,
                     as: 'parcial',
                     attributes: ['nombre']
+                },
+                {
+                    model: AsistenciaImagen,
+                    as: 'imagenes',
+                    attributes: ['id', 'imagen', 'estado']
                 }
             ]
         });
@@ -77,6 +85,11 @@ exports.guardarAsistencia = async (req, res) => {
         if (payload.estado && typeof payload.estado === 'string') payload.estado = payload.estado.toUpperCase().trim();
         if (payload.fecha) payload.fecha = new Date(payload.fecha);
 
+        // Validar que si es EXCUSA, debe tener imagen
+        if (payload.estado === 'EXCUSA' && !req.file) {
+            return res.status(400).json({ mensaje: 'Debe subir una imagen de excusa cuando el estado es EXCUSA' });
+        }
+
     // Verificar que existan las referencias foráneas antes de crear
     if (!payload.estudianteId) return res.status(400).json({ mensaje: 'estudianteId es requerido' });
     if (!payload.periodoId) return res.status(400).json({ mensaje: 'periodoId es requerido' });
@@ -99,6 +112,17 @@ exports.guardarAsistencia = async (req, res) => {
     }
 
     const asistencia = await Asistencia.create(payload);
+
+    // Si hay imagen, guardarla en la tabla AsistenciaImagenes
+    if (req.file) {
+        const nombreImagen = req.file.filename;
+        await AsistenciaImagen.create({
+            imagen: nombreImagen,
+            estado: 'AC',
+            asistenciaId: asistencia.id
+        });
+        console.log(`✅ Imagen de excusa guardada: ${nombreImagen}`);
+    }
 
     // Enviar correo de notificación al estudiante
     if (estudiante.correo) {
@@ -123,6 +147,7 @@ exports.guardarAsistencia = async (req, res) => {
     return res.status(201).json({ 
       asistencia, 
       correoEnviado: !!estudiante.correo,
+      imagenGuardada: !!req.file,
       mensaje: 'Asistencia registrada exitosamente'
     });
     } catch (error) {
@@ -289,6 +314,11 @@ exports.editarAsistencia = async (req, res) => {
                     model: Clase,
                     as: 'clase',
                     attributes: ['id', 'nombre', 'docenteId']
+                },
+                {
+                    model: AsistenciaImagen,
+                    as: 'imagenes',
+                    attributes: ['id', 'imagen', 'estado']
                 }
             ]
         });
@@ -307,7 +337,56 @@ exports.editarAsistencia = async (req, res) => {
         const nombreEstudiante = asistencia.estudiante?.nombre || '';
         const correoEstudiante = asistencia.estudiante?.correo || '';
         
-        await asistencia.update(req.body);
+        // Preparar payload de actualización
+        const payload = { ...req.body };
+
+        // Si el estado cambia a EXCUSA y hay imagen nueva
+        if (payload.estado === 'EXCUSA' && req.file) {
+            // Eliminar imágenes anteriores (físicamente y de la BD)
+            if (asistencia.imagenes && asistencia.imagenes.length > 0) {
+                for (const img of asistencia.imagenes) {
+                    const rutaImagen = path.join(__dirname, '../../public/img/asistencias/excusas', img.imagen);
+                    if (fs.existsSync(rutaImagen)) {
+                        fs.unlinkSync(rutaImagen);
+                        console.log(`🗑️ Imagen anterior eliminada: ${img.imagen}`);
+                    }
+                    await AsistenciaImagen.destroy({ where: { id: img.id } });
+                }
+            }
+
+            // Guardar nueva imagen
+            const nombreImagen = req.file.filename;
+            await AsistenciaImagen.create({
+                imagen: nombreImagen,
+                estado: 'AC',
+                asistenciaId: asistencia.id
+            });
+            console.log(`✅ Nueva imagen de excusa guardada: ${nombreImagen}`);
+        }
+
+        // Si cambia de EXCUSA a otro estado, eliminar todas las imágenes
+        if (estadoAnterior === 'EXCUSA' && payload.estado && payload.estado !== 'EXCUSA') {
+            if (asistencia.imagenes && asistencia.imagenes.length > 0) {
+                for (const img of asistencia.imagenes) {
+                    const rutaImagen = path.join(__dirname, '../../public/img/asistencias/excusas', img.imagen);
+                    if (fs.existsSync(rutaImagen)) {
+                        fs.unlinkSync(rutaImagen);
+                        console.log(`🗑️ Imagen eliminada al cambiar estado: ${img.imagen}`);
+                    }
+                    await AsistenciaImagen.destroy({ where: { id: img.id } });
+                }
+            }
+        }
+
+        // Validar que si es EXCUSA debe tener imagen
+        if (payload.estado === 'EXCUSA') {
+            const tieneImagenes = await AsistenciaImagen.count({ where: { asistenciaId: asistencia.id, estado: 'AC' } });
+            if (tieneImagenes === 0 && !req.file) {
+                return res.status(400).json({ mensaje: 'Debe subir una imagen de excusa cuando el estado es EXCUSA' });
+            }
+        }
+
+        await asistencia.update(payload);
 
         // Enviar correo si el estudiante tiene email y cambió el estado
         if (correoEstudiante && estadoAnterior !== asistencia.estado) {
@@ -332,6 +411,7 @@ exports.editarAsistencia = async (req, res) => {
         res.json({ 
             asistencia,
             correoEnviado: !!(correoEstudiante && estadoAnterior !== asistencia.estado),
+            imagenActualizada: !!req.file,
             mensaje: 'Asistencia actualizada exitosamente'
         });
     } catch (error) {

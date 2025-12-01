@@ -44,3 +44,47 @@ exports.uploadImagenUsuario = multer({
         fileSize: 5000000, // 5MB
     },
 }).single("imagen");
+
+
+//metodo de almacenamiento de archivos para excusas de asistencias
+const diskStorageExcusas = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, path.join(__dirname, "../../public/img/asistencias/excusas"));
+    },
+
+    filename: (req, file, cb) => {
+        if (
+            file.mimetype == "image/jpeg" ||
+            file.mimetype == "image/png" ||
+            file.mimetype == "image/jpg"
+        ) {
+            const uniqueSuffix = Math.round(Math.random() * (99999 - 10000)) + 10000;
+
+            cb(
+                null,
+                "excusa-" +
+                Date.now() +
+                uniqueSuffix +
+                "-" +
+                file.mimetype.replace("/", ".")
+            );
+        }
+    },
+});
+
+//configuracion de subida de imagenes para excusas de asistencias
+exports.uploadImagenExcusa = multer({
+    storage: diskStorageExcusas,
+    fileFilter: (req, file, cb) => {
+
+        if (file.mimetype == "image/png" || file.mimetype == "image/jpg" || file.mimetype == "image/jpeg") {
+            cb(null, true);
+        } else {
+            cb(null, false);
+            return cb(new Error("Solo archivos png, jpeg o jpg"));
+        }
+    },
+    limits: {
+        fileSize: 5000000, // 5MB
+    },
+}).single("imagenExcusa");

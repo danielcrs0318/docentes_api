@@ -46,7 +46,7 @@ const Asistencia = db.define(
             allowNull: false
         },
         estado: {
-            type: DataTypes.ENUM('PRESENTE', 'AUSENTE', 'TARDANZA'),
+            type: DataTypes.ENUM('PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA'),
             allowNull: false,
             defaultValue: 'PRESENTE'
         },
