@@ -243,8 +243,7 @@ exports.Guardar = async (req, res) => {
 
     res.status(201).json({ 
       evaluacion, 
-      asignadas: asignaciones.length, 
-      correosEnviados,
+      asignadas: asignaciones.length,
       mensaje: 'Evaluación creada exitosamente' 
     });
   } catch (err) {
