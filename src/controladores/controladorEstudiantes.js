@@ -717,3 +717,46 @@ exports.filtrarConEstadisticas = async (req, res) => {
         });
     }
 };
+
+// FILTRO 4: Obtener estudiantes inscritos en una clase específica
+exports.obtenerEstudiantesPorClase = async (req, res) => {
+    try {
+        const { claseId } = req.query;
+
+        if (!claseId) {
+            return res.status(400).json({ error: 'claseId es requerido' });
+        }
+
+        // Obtener inscripciones de la clase
+        const inscripciones = await EstudiantesClases.findAll({
+            where: { claseId: parseInt(claseId) },
+            include: [
+                {
+                    model: Estudiantes,
+                    as: 'estudiante',
+                    attributes: ['id', 'nombre', 'correo', 'estado']
+                }
+            ]
+        });
+
+        // Extraer solo los estudiantes únicos
+        const estudiantes = inscripciones
+            .map(insc => insc.estudiante)
+            .filter((estudiante, index, self) => 
+                estudiante && index === self.findIndex(e => e.id === estudiante.id)
+            );
+
+        res.status(200).json({
+            msj: `Se encontraron ${estudiantes.length} estudiante(s) inscritos en la clase`,
+            data: estudiantes,
+            count: estudiantes.length
+        });
+
+    } catch (error) {
+        console.error('Error al obtener estudiantes por clase:', error);
+        res.status(500).json({ 
+            error: 'Error interno del servidor',
+            detalle: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};

@@ -658,4 +658,44 @@ rutas.get('/filtrar-estadisticas',
     controladorEstudiantes.filtrarConEstadisticas
 );
 
+/**
+ * @swagger
+ * /estudiantes/por-clase:
+ *   get:
+ *     summary: Obtener estudiantes inscritos en una clase específica
+ *     tags: [Estudiantes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: claseId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la clase
+ *     responses:
+ *       200:
+ *         description: Lista de estudiantes inscritos en la clase
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 msj:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 count:
+ *                   type: integer
+ *       400:
+ *         description: claseId es requerido
+ */
+rutas.get('/por-clase',
+    validarToken,
+    verificarRol(['ADMIN', 'DOCENTE']),
+    controladorEstudiantes.obtenerEstudiantesPorClase
+);
+
 module.exports = rutas;

@@ -22,6 +22,8 @@ const modeloUsuarios = require('./modelos/Usuarios');
 const modeloUsuarioImagenes = require('./modelos/UsuarioImagenes');
 const modeloProyectos = require('./modelos/Proyectos');
 const ProyectoEstudiantes = require('./modelos/ProyectoEstudiantes');
+const modeloGrupos = require('./modelos/Grupos');
+const GrupoEstudiantes = require('./modelos/GrupoEstudiantes');
 const modeloRoles = require('./modelos/Roles');
 const modeloLogsAuditoria = require('./modelos/LogsAuditoria');
 
@@ -121,6 +123,29 @@ db.authenticate().then(async (data) => {
   modeloClases.hasMany(modeloProyectos, { foreignKey: 'claseId', as: 'proyectos' });
   modeloProyectos.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
 
+  // Grupos - Clases
+  modeloClases.hasMany(modeloGrupos, { foreignKey: 'claseId', as: 'grupos' });
+  modeloGrupos.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+
+  // Grupos - Proyectos
+  modeloProyectos.hasOne(modeloGrupos, { foreignKey: 'proyectoId', as: 'grupo' });
+  modeloGrupos.belongsTo(modeloProyectos, { foreignKey: 'proyectoId', as: 'proyecto' });
+
+  // Grupos - Estudiantes (muchos a muchos)
+  modeloGrupos.belongsToMany(modeloEstudiantes, {
+    through: GrupoEstudiantes,
+    foreignKey: 'grupoId',
+    otherKey: 'estudianteId',
+    as: 'estudiantes'
+  });
+
+  modeloEstudiantes.belongsToMany(modeloGrupos, {
+    through: GrupoEstudiantes,
+    foreignKey: 'estudianteId',
+    otherKey: 'grupoId',
+    as: 'grupos'
+  });
+
   // Docentes - Clases (definimos asociación)
   modeloDocentes.hasMany(modeloClases, { foreignKey: 'docenteId', as: 'clases' });
   modeloClases.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
@@ -206,6 +231,20 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  // Sincronizar Grupos (depende de Clases y Proyectos)
+  await modeloGrupos.sync({ alter: true }).then((data) => {
+    console.log("Tabla Grupos sincronizada (alter:true) exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  // Sincronizar GrupoEstudiantes (tabla intermedia - depende de Grupos y Estudiantes)
+  await GrupoEstudiantes.sync({ alter: true }).then((data) => {
+    console.log("Tabla GrupoEstudiantes sincronizada (alter:true) - Relación muchos a muchos creada");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   await modeloEstudiantesClases.sync({ alter: true }).then((data) => {
     console.log("Tabla EstudiantesClases RECREADA (alter:true) - ÍNDICES CORREGIDOS");
   }).catch((err) => {
@@ -262,6 +301,7 @@ function mountServerAndRoutes() {
   app.use('/api/estudiantes', require('./rutas/rutaEstudiantes'));
   app.use('/api/docentes', require('./rutas/rutaDocentes'));
   app.use('/api/proyectos', require('./rutas/rutaProyectos'));
+  app.use('/api/grupos', require('./rutas/rutaGrupos'));
   app.use('/api/evaluaciones', require('./rutas/rutaEvaluaciones'));
   app.use('/api/asistencias', require('./rutas/rutaAsistencias'));
   app.use('/api/usuarios', require('./rutas/rutaUsuarios'));
