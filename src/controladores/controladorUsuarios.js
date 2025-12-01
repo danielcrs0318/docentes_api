@@ -6,7 +6,6 @@ const Estudiantes = require('../modelos/Estudiantes');
 const Roles = require('../modelos/Roles');
 const argon2 = require('argon2');
 const { Op } = require('sequelize');
-const { enviarCorreo } = require('../configuraciones/correo');
 const jwt = require('jsonwebtoken');
 const { uploadImagenUsuario } = require('../configuraciones/archivos');
 const multer = require('multer');
@@ -343,25 +342,12 @@ exports.solicitarRestablecimiento = async (req, res) => {
         usuario.pinExpiracion = new Date(Date.now() + 15 * 60000); // 15 minutos
         await usuario.save();
 
-        const contenidoCorreo = `
-            <h1>Restablecimiento de Contraseña</h1>
-            <p>Has solicitado restablecer tu contraseña. Usa el siguiente PIN para continuar:</p>
-            <h2>${pin}</h2>
-            <p>Este PIN expirará en 15 minutos.</p>
-            <p>Si no solicitaste este restablecimiento, ignora este correo.</p>
-        `;
-
-        const enviado = await enviarCorreo(
-            usuario.correo,
-            'Restablecimiento de Contraseña',
-            contenidoCorreo
-        );
-
-        if (!enviado) {
-            return res.status(500).json({ error: 'Error al enviar el correo', detalles: error.message });
-        }
-
-        res.status(200).json({ mensaje: 'PIN enviado al correo' });
+        // Devolver el PIN y nombre del usuario para que el frontend genere el correo
+        res.status(200).json({ 
+            mensaje: 'PIN generado correctamente',
+            pin: pin,
+            nombreUsuario: usuario.nombre || 'Usuario'
+        });
     } catch (error) {
         console.error('Error detallado:', error);
         res.status(500).json({
