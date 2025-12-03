@@ -6,6 +6,7 @@ const Parciales = require('../modelos/Parciales');
 const Periodos = require('../modelos/Periodos');
 const Clases = require('../modelos/Clases');
 const Secciones = require('../modelos/Secciones');
+const EstructuraCalificacion = require('../modelos/EstructuraCalificacion');
 const { validationResult } = require('express-validator');
 const { enviarCorreo, generarPlantillaCorreo } = require('../configuraciones/correo');
 
@@ -72,6 +73,21 @@ exports.Guardar = async (req, res) => {
     if (!parcial) return res.status(400).json({ msj: 'Parcial no encontrado' });
     const periodo = await Periodos.findByPk(periodoId);
     if (!periodo) return res.status(400).json({ msj: 'Periodo no encontrado' });
+
+    // ✅ Validar que exista estructura de calificación si se proporciona clase
+    if (claseId && parcialId) {
+      const estructuraExistente = await EstructuraCalificacion.findOne({
+        where: { claseId, parcialId, estado: 'ACTIVO' }
+      });
+      
+      if (!estructuraExistente) {
+        return res.status(400).json({ 
+          msj: 'Debe crear la estructura de calificación antes de registrar evaluaciones',
+          error: 'ESTRUCTURA_REQUERIDA',
+          detalle: `No existe estructura de calificación para la clase ${claseId} en el parcial ${parcialId}`
+        });
+      }
+    }
 
     const evaluacion = await Evaluaciones.create({
       titulo, 
@@ -488,9 +504,40 @@ exports.RegistrarNota = async (req, res) => {
   }
 };
 
-// Helper: calcula acumulativo, reposicion y total final para un estudiante en un parcial
+// Helper: calcula acumulativo, examen, reposicion y total final para un estudiante en un parcial
+// Usa la estructura de calificación configurable si existe, sino valores por defecto
 const calcularTotalParcial = async (estudianteId, parcialId) => {
-  // traer asignaciones del estudiante para evaluaciones de ese parcial
+  // Obtener el parcial para saber la clase asociada
+  const parcial = await Parciales.findByPk(parcialId);
+  if (!parcial) {
+    throw new Error('Parcial no encontrado');
+  }
+
+  // Obtener la evaluación para determinar la clase
+  const primeraEvaluacion = await Evaluaciones.findOne({
+    where: { parcialId },
+    attributes: ['claseId']
+  });
+
+  let estructura = null;
+  if (primeraEvaluacion && primeraEvaluacion.claseId) {
+    // Buscar estructura de calificación configurada para este parcial y clase
+    estructura = await EstructuraCalificacion.findOne({
+      where: {
+        parcialId: parcialId,
+        claseId: primeraEvaluacion.claseId,
+        estado: 'ACTIVO'
+      }
+    });
+  }
+
+  // Usar pesos configurados o valores por defecto (60% acumulativo, 40% examen, 0% reposición)
+  const pesoAcumulativo = estructura ? parseFloat(estructura.pesoAcumulativo) : 60;
+  const pesoExamen = estructura ? parseFloat(estructura.pesoExamen) : 40;
+  const pesoReposicion = estructura ? parseFloat(estructura.pesoReposicion) : 0;
+  const notaMaximaParcial = estructura ? parseFloat(estructura.notaMaximaParcial) : 100;
+
+  // Traer asignaciones del estudiante para evaluaciones de ese parcial
   const registros = await EvaluacionesEstudiantes.findAll({
     where: { estudianteId },
     include: [
@@ -502,9 +549,11 @@ const calcularTotalParcial = async (estudianteId, parcialId) => {
     ]
   });
 
-  // Usar ponderaciones (peso) para combinar evaluaciones normales y reposiciones.
+  // Separar por tipo de evaluación
   let totalPesoNormal = 0;
-  let weightedScoreNormal = 0; // suma de (percent * peso)
+  let weightedScoreNormal = 0;
+  let totalPesoExamen = 0;
+  let weightedScoreExamen = 0;
   let totalPesoReposicion = 0;
   let weightedScoreReposicion = 0;
 
@@ -516,39 +565,71 @@ const calcularTotalParcial = async (estudianteId, parcialId) => {
 
     if (nota === null) continue; // saltar si no hay nota
 
-    // calcular porcentaje de la nota respecto a su notaMaxima si existe, sino asumimos nota ya en escala porcentual
+    // Calcular porcentaje de la nota respecto a su notaMaxima
     const percent = notaMax ? (nota / notaMax) * 100 : nota;
 
     if (ev.tipo === 'REPOSICION') {
       weightedScoreReposicion += percent * peso;
       totalPesoReposicion += peso;
+    } else if (ev.tipo === 'EXAMEN') {
+      weightedScoreExamen += percent * peso;
+      totalPesoExamen += peso;
     } else {
+      // NORMAL o cualquier otro tipo
       weightedScoreNormal += percent * peso;
       totalPesoNormal += peso;
     }
   }
 
+  // Calcular promedios ponderados de cada tipo
   let acumulativoPercent = 0;
   if (totalPesoNormal > 0) {
-    acumulativoPercent = weightedScoreNormal / totalPesoNormal; // promedio ponderado en %
+    acumulativoPercent = weightedScoreNormal / totalPesoNormal;
   }
 
-  // Combinar normal + reposición por media ponderada usando la suma de pesos
-  let finalParcial = acumulativoPercent;
+  let examenPercent = 0;
+  if (totalPesoExamen > 0) {
+    examenPercent = weightedScoreExamen / totalPesoExamen;
+  }
+
+  let reposicionPercent = 0;
   if (totalPesoReposicion > 0) {
-    const totalWeighted = weightedScoreNormal + weightedScoreReposicion;
-    const totalPeso = totalPesoNormal + totalPesoReposicion;
-    finalParcial = totalPeso > 0 ? totalWeighted / totalPeso : acumulativoPercent;
+    reposicionPercent = weightedScoreReposicion / totalPesoReposicion;
   }
 
-  // calcular reposicion promedio ponderado si existe
-  const reposicionPercent = totalPesoReposicion > 0 ? (weightedScoreReposicion / totalPesoReposicion) : null;
-  // redondear a 2 decimales
+  // Aplicar pesos configurables de la estructura
+  let finalParcial = 0;
+  
+  if (pesoReposicion > 0 && reposicionPercent > 0) {
+    // Si hay reposición configurada y tiene notas, calcular con los 3 componentes
+    finalParcial = (acumulativoPercent * pesoAcumulativo / 100) + 
+                   (examenPercent * pesoExamen / 100) + 
+                   (reposicionPercent * pesoReposicion / 100);
+  } else {
+    // Sin reposición, usar solo acumulativo y examen
+    finalParcial = (acumulativoPercent * pesoAcumulativo / 100) + 
+                   (examenPercent * pesoExamen / 100);
+  }
+
+  // Asegurar que no exceda la nota máxima del parcial
+  if (finalParcial > notaMaximaParcial) {
+    finalParcial = notaMaximaParcial;
+  }
+
+  // Redondear a 2 decimales
   const round = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
+  
   return {
     acumulativo: round(acumulativoPercent),
-    reposicion: reposicionPercent !== null ? round(reposicionPercent) : null,
-    final: round(finalParcial)
+    examen: round(examenPercent),
+    reposicion: totalPesoReposicion > 0 ? round(reposicionPercent) : null,
+    final: round(finalParcial),
+    estructura: estructura ? {
+      pesoAcumulativo,
+      pesoExamen,
+      pesoReposicion,
+      notaMaximaParcial
+    } : null
   };
 };
 

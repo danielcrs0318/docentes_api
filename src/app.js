@@ -27,6 +27,7 @@ const modeloGrupos = require('./modelos/Grupos');
 const GrupoEstudiantes = require('./modelos/GrupoEstudiantes');
 const modeloRoles = require('./modelos/Roles');
 const modeloLogsAuditoria = require('./modelos/LogsAuditoria');
+const modeloEstructuraCalificacion = require('./modelos/EstructuraCalificacion');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./configuraciones/swagger');
@@ -170,6 +171,15 @@ db.authenticate().then(async (data) => {
   modeloUsuarios.hasMany(modeloUsuarioImagenes, { foreignKey: 'usuarioId', as: 'imagenes' });
   modeloUsuarioImagenes.belongsTo(modeloUsuarios, { foreignKey: 'usuarioId', as: 'usuario' });
 
+  // Relaciones de Estructura de Calificación
+  modeloEstructuraCalificacion.belongsTo(modeloParciales, { foreignKey: 'parcialId', as: 'parcial' });
+  modeloEstructuraCalificacion.belongsTo(modeloClases, { foreignKey: 'claseId', as: 'clase' });
+  modeloEstructuraCalificacion.belongsTo(modeloDocentes, { foreignKey: 'docenteId', as: 'docente' });
+  
+  modeloParciales.hasMany(modeloEstructuraCalificacion, { foreignKey: 'parcialId', as: 'estructuras' });
+  modeloClases.hasMany(modeloEstructuraCalificacion, { foreignKey: 'claseId', as: 'estructuras' });
+  modeloDocentes.hasMany(modeloEstructuraCalificacion, { foreignKey: 'docenteId', as: 'estructuras' });
+
   // Sincronizar modelos con la base de datos (orden respetando FKs)
   
   // 1. Sincronizar Roles primero (no tiene dependencias)
@@ -270,6 +280,12 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
+  await modeloAsistenciaImagenes.sync({ alter: true }).then((data) => {
+    console.log("Tabla AsistenciaImagenes sincronizada (alter:true) exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
   await modeloUsuarios.sync({ alter: true }).then((data) => {
     console.log("Tabla Usuarios sincronizada (alter:true) con un Modelo exitosamente");
   }).catch((err) => {
@@ -284,6 +300,12 @@ db.authenticate().then(async (data) => {
 
   await modeloLogsAuditoria.sync({ alter: true }).then((data) => {
     console.log("Tabla LogsAuditoria sincronizada (alter:true) con un Modelo exitosamente");
+  }).catch((err) => {
+    console.error(err);
+  });
+
+  await modeloEstructuraCalificacion.sync({ alter: true }).then((data) => {
+    console.log("Tabla EstructuraCalificacion sincronizada (alter:true) exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -314,6 +336,7 @@ function mountServerAndRoutes() {
   app.use('/api/auditoria', require('./rutas/rutaAuditoria'));
   app.use('/api/notificaciones', require('./rutas/rutaNotificaciones'));
   app.use('/api/correo', require('./rutas/rutaCorreo'));
+  app.use('/api/estructura-calificacion', require('./rutas/rutaEstructuraCalificacion'));
 
   // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
