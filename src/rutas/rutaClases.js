@@ -3,6 +3,7 @@ const { body, query } = require('express-validator');
 const controladorClases = require('../controladores/controladorClases');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 
 const rutas = Router();
 
@@ -140,7 +141,14 @@ rutas.post('/guardar', [
         .notEmpty()
         .isIn([3, 4])
         .withMessage('Los créditos son obligatorios y deben ser 3 o 4'),
-], controladorClases.CrearClase);
+], 
+    registrarAuditoria('CREAR', 'Clases', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó clase: ${req.body.codigo} - ${req.body.nombre}`,
+        incluirDatosNuevos: true
+    }),
+    controladorClases.CrearClase
+);
 
 /**
  * @swagger
@@ -208,7 +216,14 @@ rutas.put('/editar', [
         .notEmpty()
         .isIn([3, 4])
         .withMessage('Los créditos son obligatorios y deben ser 3 o 4'),
-], controladorClases.ActualizarClase);
+], 
+    registrarAuditoria('EDITAR', 'Clases', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó clase ID: ${req.query.id} - ${req.body.nombre}`,
+        incluirDatosNuevos: true
+    }),
+    controladorClases.ActualizarClase
+);
 
 /**
  * @swagger
@@ -237,7 +252,13 @@ rutas.delete('/eliminar', [
     query('id')
         .notEmpty()
         .withMessage('El ID es obligatorio')
-], controladorClases.EliminarClase);
+], 
+    registrarAuditoria('ELIMINAR', 'Clases', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó clase ID: ${req.query.id}`
+    }),
+    controladorClases.EliminarClase
+);
 
 /**
  * @swagger

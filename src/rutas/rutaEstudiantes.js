@@ -4,6 +4,7 @@ const controladorEstudiantes = require('../controladores/controladorEstudiantes'
 const { uploadExcel } = require('../configuraciones/multer');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 const rutas = Router();
 
 
@@ -164,7 +165,14 @@ rutas.post('/guardar', [
         .optional()
         .isIn(['ACTIVO', 'INACTIVO', 'RETIRADO'])
         .withMessage('El estado debe ser ACTIVO, INACTIVO o RETIRADO')
-], controladorEstudiantes.CrearEstudiante);
+], 
+    registrarAuditoria('CREAR', 'Estudiantes', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó estudiante: ${req.body.nombre} (${req.body.correo})`,
+        incluirDatosNuevos: true
+    }),
+    controladorEstudiantes.CrearEstudiante
+);
 
 /**
  * @swagger
@@ -236,7 +244,14 @@ rutas.put('/editar', [
         .optional()
         .isIn(['ACTIVO', 'INACTIVO', 'RETIRADO'])
         .withMessage('El estado debe ser ACTIVO, INACTIVO o RETIRADO')
-], controladorEstudiantes.ActualizarEstudiante);
+], 
+    registrarAuditoria('EDITAR', 'Estudiantes', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó estudiante ID: ${req.query.id} - ${req.body.nombre}`,
+        incluirDatosNuevos: true
+    }),
+    controladorEstudiantes.ActualizarEstudiante
+);
 
 /**
  * @swagger
@@ -268,7 +283,13 @@ rutas.delete('/eliminar', [
         .notEmpty()
         .isInt()
         .withMessage('El ID debe ser un número entero')
-], controladorEstudiantes.EliminarEstudiante);
+], 
+    registrarAuditoria('ELIMINAR', 'Estudiantes', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó estudiante ID: ${req.query.id}`
+    }),
+    controladorEstudiantes.EliminarEstudiante
+);
 
 /**
  * @swagger

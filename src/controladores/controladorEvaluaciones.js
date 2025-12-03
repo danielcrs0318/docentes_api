@@ -25,20 +25,21 @@ exports.Listar = async (req, res) => {
   if (parcialId) where.parcialId = parcialId;
   if (periodoId) where.periodoId = periodoId;
 
-  // Filtrar por docente si el rol es DOCENTE
-  if (rol === 'DOCENTE') {
-    where['$clase.docenteId$'] = docenteId;
-  }
-
   try {
     const lista = await Evaluaciones.findAll({ 
       where,
       include: [
         {
+          model: Parciales,
+          as: 'parcial',
+          attributes: ['id', 'nombre'],
+          required: false
+        },
+        {
           model: Clases,
           as: 'clase',
           attributes: ['id', 'codigo', 'nombre', 'docenteId'],
-          required: rol === 'DOCENTE' // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
+          required: false // LEFT JOIN para permitir evaluaciones sin clase
         },
         {
           model: Secciones,
@@ -48,7 +49,21 @@ exports.Listar = async (req, res) => {
         }
       ]
     });
-    res.json(lista);
+
+    // Filtrar por docente después de la consulta si es necesario
+    let listaFiltrada = lista;
+    if (rol === 'DOCENTE') {
+      listaFiltrada = lista.filter(evaluacion => {
+        // Si tiene clase, debe ser del docente
+        if (evaluacion.clase) {
+          return evaluacion.clase.docenteId === docenteId;
+        }
+        // Si NO tiene clase, debe haber sido creada por el docente
+        return evaluacion.creadoPor === docenteId;
+      });
+    }
+
+    res.json(listaFiltrada);
   } catch (err) {
     console.error('Error al listar evaluaciones:', err);
     res.status(500).json({ msj: 'Error al listar evaluaciones', error: err.message });
@@ -68,6 +83,8 @@ exports.Guardar = async (req, res) => {
 
   try {
     const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId, tipo, peso, estado } = req.body;
+
+    const { docenteId } = req.usuario;
 
     const parcial = await Parciales.findByPk(parcialId);
     if (!parcial) return res.status(400).json({ msj: 'Parcial no encontrado' });
@@ -101,7 +118,8 @@ exports.Guardar = async (req, res) => {
       periodoId,
       tipo: tipo || 'NORMAL',
       peso: peso || 1.0,
-      estado: estado || 'ACTIVO'
+      estado: estado || 'ACTIVO',
+      creadoPor: docenteId // Registrar quién creó la evaluación
     });
 
     // Si no se proporcionan estudiantes, clase o sección, solo crear la evaluación

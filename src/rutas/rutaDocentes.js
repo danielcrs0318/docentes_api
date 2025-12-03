@@ -4,6 +4,7 @@ const rutas = Router();
 const controladorDocentes = require('../controladores/controladorDocentes');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 
 // Middleware de validación personalizado
 const validarFiltros = (validaciones) => {
@@ -92,7 +93,14 @@ rutas.post('/guardar', [
     verificarRol(['ADMIN']),
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
     body('correo').isEmail().withMessage('El correo debe ser válido')
-], controladorDocentes.CrearDocente);
+], 
+    registrarAuditoria('CREAR', 'Docentes', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó docente: ${req.body.nombre} (${req.body.correo})`,
+        incluirDatosNuevos: true
+    }),
+    controladorDocentes.CrearDocente
+);
 
 /**
  * @swagger
@@ -123,7 +131,14 @@ rutas.put('/Editar', [
     query('id').notEmpty().withMessage('El ID del docente es obligatorio'),
     body('nombre').optional().notEmpty().withMessage('El nombre no puede estar vacío'),
     body('correo').optional().isEmail().withMessage('El correo debe ser válido')
-], controladorDocentes.ActualizarDocente);
+], 
+    registrarAuditoria('EDITAR', 'Docentes', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó docente ID: ${req.query.id}`,
+        incluirDatosNuevos: true
+    }),
+    controladorDocentes.ActualizarDocente
+);
 
 /**
  * @swagger
@@ -155,7 +170,13 @@ rutas.delete('/Eliminar', [
     validarToken,
     verificarRol(['ADMIN']),
     query('id').notEmpty().withMessage('El ID del docente es obligatorio')
-], controladorDocentes.EliminarDocente);
+], 
+    registrarAuditoria('ELIMINAR', 'Docentes', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó docente ID: ${req.query.id}`
+    }),
+    controladorDocentes.EliminarDocente
+);
 
 /**
  * @swagger

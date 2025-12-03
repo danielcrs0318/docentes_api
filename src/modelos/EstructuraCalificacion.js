@@ -81,7 +81,7 @@ const EstructuraCalificacion = db.define(
         notaMinimaAprobacion: {
             type: DataTypes.DECIMAL(5, 2),
             allowNull: false,
-            defaultValue: 60.00,
+            defaultValue: 70.00,
             validate: {
                 min: 0,
                 max: 100,

@@ -3,6 +3,7 @@ const { body, query } = require('express-validator');
 const controladorEvaluaciones = require('../controladores/controladorEvaluaciones');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 const rutas = Router();
 
 /**
@@ -688,7 +689,14 @@ rutas.post('/guardar', [
     body('estado').notEmpty().isIn(['ACTIVO', 'INACTIVO']).withMessage('estado inválido'),
     body('notaMaxima').isDecimal().withMessage('notaMaxima inválida'),
     body('estructura').isObject().withMessage('estructura debe ser un objeto JSON'),
-], controladorEvaluaciones.Guardar);
+], 
+    registrarAuditoria('CREAR', 'Evaluaciones', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó evaluación: ${req.body.titulo}`,
+        incluirDatosNuevos: true
+    }),
+    controladorEvaluaciones.Guardar
+);
 
 // Editar evaluación
 rutas.put('/editar', [
@@ -709,14 +717,27 @@ rutas.put('/editar', [
     body('parcialId').optional().isInt().withMessage('parcialId inválido'),
     body('periodoId').optional().isInt().withMessage('periodoId inválido'),
     body('estado').optional().isIn(['ACTIVO', 'INACTIVO']).withMessage('estado inválido'),
-], controladorEvaluaciones.Editar);
+], 
+    registrarAuditoria('EDITAR', 'Evaluaciones', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó evaluación ID: ${req.query.id} - ${req.body.titulo || 'Sin título'}`,
+        incluirDatosNuevos: true
+    }),
+    controladorEvaluaciones.Editar
+);
 
 // Eliminar evaluación
 rutas.delete('/eliminar', [
     validarToken,
     verificarRol(['ADMIN', 'DOCENTE']),
     query('id').notEmpty().isInt().withMessage('id inválido')
-], controladorEvaluaciones.Eliminar);
+], 
+    registrarAuditoria('ELIMINAR', 'Evaluaciones', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó evaluación ID: ${req.query.id}`
+    }),
+    controladorEvaluaciones.Eliminar
+);
 
 // Registrar nota para estudiante
 //ruta POST /registrarNota?evaluacionId=1&estudianteId=2&claseId=3&seccionId=2

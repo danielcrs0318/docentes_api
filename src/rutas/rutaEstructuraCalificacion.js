@@ -3,6 +3,7 @@ const rutas = Router();
 const controlador = require('../controladores/controladorEstructuraCalificacion');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 const { body, query } = require('express-validator');
 
 /**
@@ -81,6 +82,11 @@ rutas.post('/guardar',
         body('notaMaximaParcial').optional().isFloat({ min: 0, max: 100 }).withMessage('notaMaximaParcial debe estar entre 0 y 100'),
         body('notaMinimaAprobacion').optional().isFloat({ min: 0, max: 100 }).withMessage('notaMinimaAprobacion debe estar entre 0 y 100'),
     ],
+    registrarAuditoria('CREAR', 'EstructuraCalificacion', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó estructura de calificación para Parcial ${req.body.parcialId}, Clase ${req.body.claseId}`,
+        incluirDatosNuevos: true
+    }),
     controlador.Guardar
 );
 
@@ -102,6 +108,11 @@ rutas.put('/editar',
         body('notaMinimaAprobacion').optional().isFloat({ min: 0, max: 100 }),
         body('estado').optional().isIn(['ACTIVO', 'INACTIVO']),
     ],
+    registrarAuditoria('EDITAR', 'EstructuraCalificacion', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó estructura de calificación ID: ${req.query.id}`,
+        incluirDatosNuevos: true
+    }),
     controlador.Editar
 );
 
@@ -115,6 +126,10 @@ rutas.delete('/eliminar',
     validarToken,
     verificarRol(['ADMIN', 'DOCENTE']),
     query('id').isInt({ min: 1 }).withMessage('ID debe ser un entero positivo'),
+    registrarAuditoria('ELIMINAR', 'EstructuraCalificacion', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó estructura de calificación ID: ${req.query.id}`
+    }),
     controlador.Eliminar
 );
 

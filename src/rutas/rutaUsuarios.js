@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { body, query } = require('express-validator');
 const controladorUsuarios = require('../controladores/controladorUsuarios');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 const rutas = Router();
 const Usuarios = require('../modelos/Usuarios');
 const { validarToken } = require('../configuraciones/passport');
@@ -299,7 +300,14 @@ rutas.post('/guardar', [
     }),
     body('contrasena').notEmpty().withMessage('La contraseña es obligatoria'),
     body('estado').optional().isIn(['AC', 'IN', 'BL']).withMessage('El estado no es válido'),
-], controladorUsuarios.insertar);
+], 
+    registrarAuditoria('CREAR', 'Usuarios', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Creó usuario: ${req.body.login} (${req.body.correo})`,
+        incluirDatosNuevos: true
+    }),
+    controladorUsuarios.insertar
+);
 
 rutas.put('/editar', [
     query('id').notEmpty().withMessage('El id es obligatorio'),
@@ -332,11 +340,24 @@ rutas.put('/editar', [
         }
     }),
     body('estado').optional().isIn(['AC', 'IN', 'BL']).withMessage('El estado no es válido'),
-], controladorUsuarios.actualizar);
+], 
+    registrarAuditoria('EDITAR', 'Usuarios', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Editó usuario ID: ${req.query.id}`,
+        incluirDatosNuevos: true
+    }),
+    controladorUsuarios.actualizar
+);
 
 rutas.delete('/eliminar', [
     query('id').notEmpty().withMessage('El id es obligatorio'),
-], controladorUsuarios.Eliminar);
+], 
+    registrarAuditoria('ELIMINAR', 'Usuarios', {
+        obtenerIdDe: 'query',
+        descripcion: (req, data) => `Eliminó usuario ID: ${req.query.id}`
+    }),
+    controladorUsuarios.Eliminar
+);
 
 /**
  * @swagger

@@ -208,7 +208,7 @@ exports.Guardar = async (req, res) => {
             pesoExamen: parseFloat(pesoExamen),
             pesoReposicion: parseFloat(pesoReposicion || 0),
             notaMaximaParcial: parseFloat(notaMaximaParcial || 100),
-            notaMinimaAprobacion: parseFloat(notaMinimaAprobacion || 60),
+            notaMinimaAprobacion: parseFloat(notaMinimaAprobacion || 70),
             observaciones,
         });
 
@@ -369,7 +369,7 @@ exports.ObtenerPorParcialYClase = async (req, res) => {
                 pesoExamen: 40,
                 pesoReposicion: 0,
                 notaMaximaParcial: 100,
-                notaMinimaAprobacion: 60,
+                notaMinimaAprobacion: 70,
             });
         }
 

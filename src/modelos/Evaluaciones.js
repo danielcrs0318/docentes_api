@@ -79,6 +79,15 @@ const Evaluaciones = db.define(
                 key: 'id',
             },
         },
+        creadoPor: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Docentes',
+                key: 'id',
+            },
+            comment: 'ID del docente que creó la evaluación'
+        },
     },
     {
         tableName: 'Evaluaciones',

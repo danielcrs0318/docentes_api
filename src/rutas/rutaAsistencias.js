@@ -4,6 +4,7 @@ const controladorAsistencias = require('../controladores/controladorAsistencias'
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
 const { uploadImagenExcusa } = require('../configuraciones/archivos');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 
 /**
  * @swagger
@@ -153,7 +154,17 @@ router.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANT
  *         description: Error del servidor
  */
 // Ruta para guardar asistencias múltiples
-router.post('/guardar-multiple', validarToken, verificarRol(['ADMIN', 'DOCENTE']), validacionesAsistenciaMultiple, controladorAsistencias.guardarAsistenciaMultiple);
+router.post('/guardar-multiple', 
+    validarToken, 
+    verificarRol(['ADMIN', 'DOCENTE']), 
+    validacionesAsistenciaMultiple, 
+    registrarAuditoria('CREAR', 'Asistencias', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Registró asistencia múltiple para clase ${req.body.claseId} - ${req.body.fecha}`,
+        incluirDatosNuevos: false
+    }),
+    controladorAsistencias.guardarAsistenciaMultiple
+);
 
 /**
  * @swagger
@@ -175,7 +186,18 @@ router.post('/guardar-multiple', validarToken, verificarRol(['ADMIN', 'DOCENTE']
  *       500:
  *         description: Error del servidor
  */
-router.post('/guardar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), uploadImagenExcusa, validacionesAsistencia, controladorAsistencias.guardarAsistencia);
+router.post('/guardar', 
+    validarToken, 
+    verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), 
+    uploadImagenExcusa, 
+    validacionesAsistencia, 
+    registrarAuditoria('CREAR', 'Asistencias', {
+        obtenerIdDe: 'data',
+        descripcion: (req, data) => `Registró asistencia estudiante ${req.body.estudianteId} - ${req.body.estado}`,
+        incluirDatosNuevos: false
+    }),
+    controladorAsistencias.guardarAsistencia
+);
 
 /**
  * @swagger

@@ -3,6 +3,7 @@ const { body, query } = require('express-validator');
 const controladorProyectos = require('../controladores/controladorProyectos');
 const { validarToken } = require('../configuraciones/passport');
 const { verificarRol } = require('../configuraciones/autorizacion');
+const { registrarAuditoria } = require('../configuraciones/middlewareAuditoria');
 const rutas = Router();
 
 /* Listar 
@@ -174,7 +175,14 @@ rutas.post('/guardar', [
   body('fecha_entrega').optional().isISO8601().withMessage('agregue una fecha de entrega válida'),
   body('estado').optional().isIn(['PENDIENTE','EN_CURSO','ENTREGADO','CERRADO']).withMessage('estado inválido'),
   body('estudiantes').optional().isArray().withMessage('estudiantes debe ser un arreglo de ids').bail()
-], controladorProyectos.CrearProyecto);
+], 
+  registrarAuditoria('CREAR', 'Proyectos', {
+      obtenerIdDe: 'data',
+      descripcion: (req, data) => `Creó proyecto: ${req.body.nombre}`,
+      incluirDatosNuevos: true
+  }),
+  controladorProyectos.CrearProyecto
+);
 
 /* Editar */
 /**
@@ -216,7 +224,14 @@ rutas.put('/editar', [
   verificarRol(['ADMIN', 'DOCENTE']),
   query('id').notEmpty().isInt(),
   body('nombre').notEmpty().isLength({ min: 2 })
-], controladorProyectos.ActualizarProyecto);
+], 
+  registrarAuditoria('EDITAR', 'Proyectos', {
+      obtenerIdDe: 'query',
+      descripcion: (req, data) => `Editó proyecto ID: ${req.query.id} - ${req.body.nombre}`,
+      incluirDatosNuevos: true
+  }),
+  controladorProyectos.ActualizarProyecto
+);
 
 /* Eliminar */
 /**
@@ -245,7 +260,13 @@ rutas.delete('/eliminar', [
   validarToken,
   verificarRol(['ADMIN', 'DOCENTE']),
   query('id').notEmpty().isInt()
-], controladorProyectos.EliminarProyecto);
+], 
+  registrarAuditoria('ELIMINAR', 'Proyectos', {
+      obtenerIdDe: 'query',
+      descripcion: (req, data) => `Eliminó proyecto ID: ${req.query.id}`
+  }),
+  controladorProyectos.EliminarProyecto
+);
 
 /* Asignar manual */
 rutas.post('/asignar', [
