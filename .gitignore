@@ -8,3 +8,4 @@
 *.log
 *.tmp
 public/img/usuarios/*
+public/img/asistencias/excusas/ *
