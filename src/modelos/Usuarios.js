@@ -11,6 +11,7 @@ const Usuario = db.define(
         pinExpiracion: { type: DataTypes.DATE, allowNull: true },
         intentos: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 0 },
         contrasena: { type: DataTypes.STRING(250), allowNull: false },
+        requiereCambioContrasena: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
         estado: { type: DataTypes.ENUM('AC', 'IN', 'BL'), allowNull: true, defaultValue: 'AC' },
         rolId: {
             type: DataTypes.INTEGER,

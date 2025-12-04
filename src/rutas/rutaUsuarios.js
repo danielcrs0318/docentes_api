@@ -235,6 +235,56 @@ rutas.post('/restablecer-contrasena', [
 
 /**
  * @swagger
+ * /usuarios/cambiar-contrasena-primera-vez:
+ *   post:
+ *     summary: Cambia la contraseña temporal en el primer inicio de sesión
+ *     tags: [Usuarios]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - contrasenaActual
+ *               - contrasenaNueva
+ *             properties:
+ *               contrasenaActual:
+ *                 type: string
+ *                 description: La contraseña temporal recibida por correo
+ *               contrasenaNueva:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: La nueva contraseña del usuario
+ *     responses:
+ *       200:
+ *         description: Contraseña actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                 token:
+ *                   type: string
+ *                 requiereCambioContrasena:
+ *                   type: boolean
+ *       400:
+ *         description: Error en la solicitud
+ *       404:
+ *         description: Usuario no encontrado
+ */
+rutas.post('/cambiar-contrasena-primera-vez', [
+    validarToken,
+    body('contrasenaActual').notEmpty().withMessage('La contraseña actual es requerida'),
+    body('contrasenaNueva').isLength({ min: 6 }).withMessage('La nueva contraseña debe tener al menos 6 caracteres'),
+], controladorUsuarios.cambiarContrasenaPrimeraVez);
+
+/**
+ * @swagger
  * /usuarios/listar:
  *   get:
  *     summary: Listar todos los usuarios

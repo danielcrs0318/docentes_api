@@ -89,6 +89,13 @@ rutas.get('/Listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controlad
  */
 
 rutas.post('/guardar', [
+    body('nombre').notEmpty().withMessage('El nombre es obligatorio'),
+    body('correo').isEmail().withMessage('El correo debe ser válido')
+], 
+    controladorDocentes.CrearDocente
+);
+
+rutas.post('/guardar-admin', [
     validarToken,
     verificarRol(['ADMIN']),
     body('nombre').notEmpty().withMessage('El nombre es obligatorio'),

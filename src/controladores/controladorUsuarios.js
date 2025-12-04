@@ -303,6 +303,7 @@ exports.iniciarSesion = async (req, res) => {
         
         return res.status(200).json({
             token,
+            requiereCambioContrasena: usuario.requiereCambioContrasena || false, // 🔑 Indicar si debe cambiar contraseña
             usuario: {
                 id: usuario.id,
                 login: usuario.login,
@@ -433,6 +434,64 @@ exports.restablecerContrasena = async (req, res) => {
         res.status(200).json({ mensaje: 'Contraseña actualizada exitosamente' });
     } catch (error) {
         console.error(error);
+        res.status(500).json({ error: 'Error en el servidor' });
+    }
+};
+
+exports.cambiarContrasenaPrimeraVez = async (req, res) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({ errores: errores.array() });
+    }
+
+    try {
+        const { contrasenaActual, contrasenaNueva } = req.body;
+        const usuarioId = req.usuario.id;
+
+        const usuario = await Usuarios.findByPk(usuarioId);
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // Verificar que el usuario requiere cambio de contraseña
+        if (!usuario.requiereCambioContrasena) {
+            return res.status(400).json({ error: 'Este usuario no necesita cambiar su contraseña' });
+        }
+
+        // Verificar contraseña actual
+        const contrasenaValida = await argon2.verify(usuario.contrasena, contrasenaActual);
+        if (!contrasenaValida) {
+            return res.status(400).json({ error: 'La contraseña actual es incorrecta' });
+        }
+
+        // Validar que la nueva contraseña sea diferente a la actual
+        const esIgual = await argon2.verify(usuario.contrasena, contrasenaNueva);
+        if (esIgual) {
+            return res.status(400).json({ error: 'La nueva contraseña debe ser diferente a la actual' });
+        }
+
+        // Actualizar contraseña y marcar como cambiada
+        const hash = await argon2.hash(contrasenaNueva);
+        usuario.contrasena = hash;
+        usuario.requiereCambioContrasena = false;
+
+        await usuario.save();
+
+        // Generar nuevo token con la información actualizada
+        const token = getToken({
+            id: usuario.id,
+            login: usuario.login,
+            correo: usuario.correo
+        });
+
+        res.status(200).json({
+            mensaje: 'Contraseña actualizada exitosamente',
+            token,
+            requiereCambioContrasena: false
+        });
+    } catch (error) {
+        console.error('Error al cambiar contraseña primera vez:', error);
         res.status(500).json({ error: 'Error en el servidor' });
     }
 };
