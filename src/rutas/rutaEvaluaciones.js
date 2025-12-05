@@ -670,6 +670,14 @@ const rutas = Router();
 // Listar evaluaciones (opcionalmente filtrar por claseId, parcialId, periodoId)
 rutas.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), controladorEvaluaciones.Listar);
 
+// Listar solo exámenes de una clase (para reposiciones)
+rutas.get('/listar-examenes', 
+    validarToken, 
+    verificarRol(['ADMIN', 'DOCENTE']),
+    query('claseId').isInt({ min: 1 }).withMessage('claseId es requerido y debe ser un entero'),
+    controladorEvaluaciones.ListarExamenesPorClase
+);
+
 // Crear evaluación (asignación de estudiantes es opcional, se puede hacer después con /asignar)
 rutas.post('/guardar', [
     validarToken,

@@ -108,14 +108,14 @@ const EstructuraCalificacion = db.define(
             },
         ],
         validate: {
-            // Validar que la suma de pesos sea 100%
+            // Validar que la suma de Acumulativo + Examen sea 100%
+            // NOTA: pesoReposicion NO se suma porque REEMPLAZA al examen, no se acumula
             pesosSuman100() {
                 const total = parseFloat(this.pesoAcumulativo) + 
-                             parseFloat(this.pesoExamen) + 
-                             parseFloat(this.pesoReposicion || 0);
+                             parseFloat(this.pesoExamen);
                 
                 if (Math.abs(total - 100) > 0.01) {
-                    throw new Error('La suma de los pesos debe ser 100%');
+                    throw new Error('La suma de Acumulativo + Examen debe ser 100%');
                 }
             },
         },

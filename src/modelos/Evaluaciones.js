@@ -88,6 +88,15 @@ const Evaluaciones = db.define(
             },
             comment: 'ID del docente que creó la evaluación'
         },
+        evaluacionReemplazadaId: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            references: {
+                model: 'Evaluaciones',
+                key: 'id',
+            },
+            comment: 'ID de la evaluación (examen) que será reemplazada por esta reposición'
+        },
     },
     {
         tableName: 'Evaluaciones',

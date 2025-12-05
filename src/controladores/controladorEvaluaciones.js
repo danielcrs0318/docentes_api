@@ -70,6 +70,45 @@ exports.Listar = async (req, res) => {
   }
 };
 
+// Listar solo evaluaciones de tipo EXAMEN para una clase específica (para reposiciones)
+exports.ListarExamenesPorClase = async (req, res) => {
+  const { claseId } = req.query;
+
+  if (!claseId) {
+    return res.status(400).json({ msj: 'claseId es requerido' });
+  }
+
+  try {
+    const examenes = await Evaluaciones.findAll({
+      where: {
+        claseId: claseId,
+        tipo: 'EXAMEN',
+        estado: 'ACTIVO'
+      },
+      include: [
+        {
+          model: Parciales,
+          as: 'parcial',
+          attributes: ['id', 'nombre'],
+          required: false
+        },
+        {
+          model: Periodos,
+          as: 'periodo',
+          attributes: ['id', 'nombre'],
+          required: false
+        }
+      ],
+      order: [['fechaInicio', 'DESC']]
+    });
+
+    res.json(examenes);
+  } catch (err) {
+    console.error('Error al listar exámenes:', err);
+    res.status(500).json({ msj: 'Error al listar exámenes', error: err.message });
+  }
+};
+
 exports.Guardar = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -82,10 +121,83 @@ exports.Guardar = async (req, res) => {
   }
 
   try {
-    const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId, tipo, peso, estado } = req.body;
+    const { titulo, notaMaxima, fechaInicio, fechaCierre, estructura, claseId, seccionId, estudiantes: estudiantesBody, parcialId, periodoId, tipo, peso, estado, evaluacionReemplazadaId } = req.body;
 
     const { docenteId } = req.usuario;
 
+    // Si es tipo REPOSICION, validar y obtener datos del examen a reemplazar
+    if (tipo === 'REPOSICION') {
+      if (!evaluacionReemplazadaId) {
+        return res.status(400).json({ msj: 'Para reposiciones debe especificar la evaluación a reemplazar (evaluacionReemplazadaId)' });
+      }
+
+      // Obtener el examen a reemplazar
+      const examenOriginal = await Evaluaciones.findByPk(evaluacionReemplazadaId);
+      if (!examenOriginal) {
+        return res.status(404).json({ msj: 'Evaluación a reemplazar no encontrada' });
+      }
+
+      if (examenOriginal.tipo !== 'EXAMEN') {
+        return res.status(400).json({ msj: 'Solo se pueden reemplazar evaluaciones de tipo EXAMEN' });
+      }
+
+      // Verificar que no exista ya una reposición para este examen
+      const reposicionExistente = await Evaluaciones.findOne({
+        where: {
+          evaluacionReemplazadaId: evaluacionReemplazadaId,
+          estado: 'ACTIVO'
+        }
+      });
+
+      if (reposicionExistente) {
+        return res.status(400).json({ 
+          msj: 'Ya existe una reposición activa para este examen',
+          reposicionId: reposicionExistente.id
+        });
+      }
+
+      // Crear la reposición con datos heredados del examen
+      const evaluacion = await Evaluaciones.create({
+        titulo, 
+        notaMaxima: examenOriginal.notaMaxima, // Heredada del examen
+        fechaInicio, 
+        fechaCierre, 
+        estructura, 
+        claseId: examenOriginal.claseId, // Heredada del examen
+        seccionId: examenOriginal.seccionId, // Heredada del examen
+        parcialId: examenOriginal.parcialId, // Heredada del examen
+        periodoId: examenOriginal.periodoId, // Heredada del examen
+        tipo: 'REPOSICION',
+        peso: peso || 1.0,
+        estado: estado || 'ACTIVO',
+        creadoPor: docenteId,
+        evaluacionReemplazadaId: evaluacionReemplazadaId // Referencia al examen
+      });
+
+      // Asignar automáticamente a los mismos estudiantes del examen
+      const asignacionesExamen = await EvaluacionesEstudiantes.findAll({
+        where: { evaluacionId: evaluacionReemplazadaId },
+        attributes: ['estudianteId']
+      });
+
+      const estudiantesIds = asignacionesExamen.map(a => a.estudianteId);
+      
+      if (estudiantesIds.length > 0) {
+        const asignaciones = estudiantesIds.map(id => ({ 
+          evaluacionId: evaluacion.id, 
+          estudianteId: id 
+        }));
+        await EvaluacionesEstudiantes.bulkCreate(asignaciones, { ignoreDuplicates: true });
+      }
+
+      return res.status(201).json({ 
+        evaluacion, 
+        asignadas: estudiantesIds.length,
+        mensaje: `Reposición creada exitosamente. Se asignó a ${estudiantesIds.length} estudiante(s) del examen original.`
+      });
+    }
+
+    // Flujo normal para evaluaciones tipo NORMAL o EXAMEN
     const parcial = await Parciales.findByPk(parcialId);
     if (!parcial) return res.status(400).json({ msj: 'Parcial no encontrado' });
     const periodo = await Periodos.findByPk(periodoId);
@@ -523,7 +635,7 @@ exports.RegistrarNota = async (req, res) => {
 };
 
 // Helper: calcula acumulativo, examen, reposicion y total final para un estudiante en un parcial
-// Usa la estructura de calificación configurable si existe, sino valores por defecto
+// LÓGICA: Suma directa de puntos obtenidos
 const calcularTotalParcial = async (estudianteId, parcialId) => {
   // Obtener el parcial para saber la clase asociada
   const parcial = await Parciales.findByPk(parcialId);
@@ -549,7 +661,7 @@ const calcularTotalParcial = async (estudianteId, parcialId) => {
     });
   }
 
-  // Usar pesos configurados o valores por defecto (60% acumulativo, 40% examen, 0% reposición)
+  // Usar pesos configurados o valores por defecto
   const pesoAcumulativo = estructura ? parseFloat(estructura.pesoAcumulativo) : 60;
   const pesoExamen = estructura ? parseFloat(estructura.pesoExamen) : 40;
   const pesoReposicion = estructura ? parseFloat(estructura.pesoReposicion) : 0;
@@ -567,67 +679,47 @@ const calcularTotalParcial = async (estudianteId, parcialId) => {
     ]
   });
 
-  // Separar por tipo de evaluación
-  let totalPesoNormal = 0;
-  let weightedScoreNormal = 0;
-  let totalPesoExamen = 0;
-  let weightedScoreExamen = 0;
-  let totalPesoReposicion = 0;
-  let weightedScoreReposicion = 0;
+  // Calcular suma directa de puntos por tipo
+  let puntosAcumulativo = 0;
+  let puntosExamen = 0;
+  let puntosReposicion = 0;
+  let examenesReemplazadosConNota = new Set(); // IDs de exámenes que tienen reposición CON NOTA
 
+  // Primer paso: identificar qué exámenes tienen reposición CON NOTA registrada
   for (const r of registros) {
     const ev = r.evaluacion;
     const nota = r.nota !== null && r.nota !== undefined ? parseFloat(r.nota) : null;
-    const peso = ev.peso ? parseFloat(ev.peso) : 1;
-    const notaMax = ev.notaMaxima ? parseFloat(ev.notaMaxima) : null;
-
-    if (nota === null) continue; // saltar si no hay nota
-
-    // Calcular porcentaje de la nota respecto a su notaMaxima
-    const percent = notaMax ? (nota / notaMax) * 100 : nota;
-
-    if (ev.tipo === 'REPOSICION') {
-      weightedScoreReposicion += percent * peso;
-      totalPesoReposicion += peso;
-    } else if (ev.tipo === 'EXAMEN') {
-      weightedScoreExamen += percent * peso;
-      totalPesoExamen += peso;
-    } else {
-      // NORMAL o cualquier otro tipo
-      weightedScoreNormal += percent * peso;
-      totalPesoNormal += peso;
+    
+    if (ev.tipo === 'REPOSICION' && ev.evaluacionReemplazadaId && nota !== null) {
+      // Solo marcar el examen como reemplazado si la reposición tiene nota
+      examenesReemplazadosConNota.add(ev.evaluacionReemplazadaId);
     }
   }
 
-  // Calcular promedios ponderados de cada tipo
-  let acumulativoPercent = 0;
-  if (totalPesoNormal > 0) {
-    acumulativoPercent = weightedScoreNormal / totalPesoNormal;
+  // Segundo paso: sumar puntos según tipo
+  for (const r of registros) {
+    const ev = r.evaluacion;
+    const nota = r.nota !== null && r.nota !== undefined ? parseFloat(r.nota) : null;
+
+    if (nota === null) continue; // Saltar si no hay nota
+
+    if (ev.tipo === 'REPOSICION') {
+      // Sumar puntos de reposición
+      puntosReposicion += nota;
+    } else if (ev.tipo === 'EXAMEN') {
+      // Solo sumar examen si NO tiene reposición CON NOTA
+      if (!examenesReemplazadosConNota.has(ev.id)) {
+        puntosExamen += nota;
+      }
+      // Si tiene reposición con nota, ignorar este examen
+    } else {
+      // NORMAL o cualquier otro tipo = acumulativo
+      puntosAcumulativo += nota;
+    }
   }
 
-  let examenPercent = 0;
-  if (totalPesoExamen > 0) {
-    examenPercent = weightedScoreExamen / totalPesoExamen;
-  }
-
-  let reposicionPercent = 0;
-  if (totalPesoReposicion > 0) {
-    reposicionPercent = weightedScoreReposicion / totalPesoReposicion;
-  }
-
-  // Aplicar pesos configurables de la estructura
-  let finalParcial = 0;
-  
-  if (pesoReposicion > 0 && reposicionPercent > 0) {
-    // Si hay reposición configurada y tiene notas, calcular con los 3 componentes
-    finalParcial = (acumulativoPercent * pesoAcumulativo / 100) + 
-                   (examenPercent * pesoExamen / 100) + 
-                   (reposicionPercent * pesoReposicion / 100);
-  } else {
-    // Sin reposición, usar solo acumulativo y examen
-    finalParcial = (acumulativoPercent * pesoAcumulativo / 100) + 
-                   (examenPercent * pesoExamen / 100);
-  }
+  // Calcular total final
+  let finalParcial = puntosAcumulativo + puntosExamen + puntosReposicion;
 
   // Asegurar que no exceda la nota máxima del parcial
   if (finalParcial > notaMaximaParcial) {
@@ -638,9 +730,9 @@ const calcularTotalParcial = async (estudianteId, parcialId) => {
   const round = (v) => Math.round((v + Number.EPSILON) * 100) / 100;
   
   return {
-    acumulativo: round(acumulativoPercent),
-    examen: round(examenPercent),
-    reposicion: totalPesoReposicion > 0 ? round(reposicionPercent) : null,
+    acumulativo: round(puntosAcumulativo),
+    examen: round(puntosExamen),
+    reposicion: puntosReposicion > 0 ? round(puntosReposicion) : null,
     final: round(finalParcial),
     estructura: estructura ? {
       pesoAcumulativo,

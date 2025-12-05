@@ -176,14 +176,13 @@ exports.Guardar = async (req, res) => {
             return res.status(404).json({ error: 'Clase no encontrada' });
         }
 
-        // Validar que la suma de pesos sea 100
-        const totalPesos = parseFloat(pesoAcumulativo) + 
-                          parseFloat(pesoExamen) + 
-                          parseFloat(pesoReposicion || 0);
+        // Validar que la suma de pesos (acumulativo + examen) sea 100
+        // NOTA: pesoReposicion NO se suma porque reemplaza al examen
+        const totalPesos = parseFloat(pesoAcumulativo) + parseFloat(pesoExamen);
 
         if (Math.abs(totalPesos - 100) > 0.01) {
             return res.status(400).json({ 
-                error: 'La suma de los porcentajes debe ser 100%',
+                error: 'La suma de Acumulativo + Examen debe ser 100%',
                 suma: totalPesos 
             });
         }
@@ -200,13 +199,17 @@ exports.Guardar = async (req, res) => {
             });
         }
 
+        // AUTOMÁTICO: El peso de reposición siempre es igual al peso del examen
+        // (La reposición REEMPLAZA al examen, no se suma)
+        const pesoReposicionAutomatico = parseFloat(pesoExamen);
+
         const nuevaEstructura = await EstructuraCalificacion.create({
             parcialId,
             claseId,
             docenteId,
             pesoAcumulativo: parseFloat(pesoAcumulativo),
             pesoExamen: parseFloat(pesoExamen),
-            pesoReposicion: parseFloat(pesoReposicion || 0),
+            pesoReposicion: pesoReposicionAutomatico, // Automático = pesoExamen
             notaMaximaParcial: parseFloat(notaMaximaParcial || 100),
             notaMinimaAprobacion: parseFloat(notaMinimaAprobacion || 70),
             observaciones,
@@ -264,15 +267,15 @@ exports.Editar = async (req, res) => {
             return res.status(403).json({ error: 'No tiene permiso para editar esta estructura' });
         }
 
-        // Validar que la suma de pesos sea 100
-        if (pesoAcumulativo !== undefined || pesoExamen !== undefined || pesoReposicion !== undefined) {
+        // Validar que la suma de pesos (acumulativo + examen) sea 100
+        // NOTA: pesoReposicion NO se suma porque reemplaza al examen
+        if (pesoAcumulativo !== undefined || pesoExamen !== undefined) {
             const totalPesos = parseFloat(pesoAcumulativo ?? estructura.pesoAcumulativo) + 
-                              parseFloat(pesoExamen ?? estructura.pesoExamen) + 
-                              parseFloat(pesoReposicion ?? estructura.pesoReposicion);
+                              parseFloat(pesoExamen ?? estructura.pesoExamen);
 
             if (Math.abs(totalPesos - 100) > 0.01) {
                 return res.status(400).json({ 
-                    error: 'La suma de los porcentajes debe ser 100%',
+                    error: 'La suma de Acumulativo + Examen debe ser 100%',
                     suma: totalPesos 
                 });
             }
@@ -280,8 +283,13 @@ exports.Editar = async (req, res) => {
 
         // Actualizar campos
         if (pesoAcumulativo !== undefined) estructura.pesoAcumulativo = parseFloat(pesoAcumulativo);
-        if (pesoExamen !== undefined) estructura.pesoExamen = parseFloat(pesoExamen);
-        if (pesoReposicion !== undefined) estructura.pesoReposicion = parseFloat(pesoReposicion);
+        if (pesoExamen !== undefined) {
+            estructura.pesoExamen = parseFloat(pesoExamen);
+            // AUTOMÁTICO: Al cambiar el peso del examen, actualizar también la reposición
+            // (La reposición REEMPLAZA al examen, no se suma)
+            estructura.pesoReposicion = parseFloat(pesoExamen);
+        }
+        // El campo pesoReposicion no se puede editar manualmente, siempre es igual a pesoExamen
         if (notaMaximaParcial !== undefined) estructura.notaMaximaParcial = parseFloat(notaMaximaParcial);
         if (notaMinimaAprobacion !== undefined) estructura.notaMinimaAprobacion = parseFloat(notaMinimaAprobacion);
         if (estado !== undefined) estructura.estado = estado;
