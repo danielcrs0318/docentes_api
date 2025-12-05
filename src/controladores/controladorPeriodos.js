@@ -122,6 +122,41 @@ exports.CrearPeriodo = async (req, res) => {
   try {
     const { parciales, ...datosPeriodo } = req.body;
 
+    // Validar que no exista un periodo con las mismas fechas
+    const periodoExistente = await Periodos.findOne({
+      where: {
+        fechaInicio: datosPeriodo.fechaInicio,
+        fechaFin: datosPeriodo.fechaFin
+      }
+    });
+
+    if (periodoExistente) {
+      return res.status(400).json({ 
+        error: 'Ya existe un periodo con estas fechas',
+        msj: `Ya existe el periodo "${periodoExistente.nombre}" con las mismas fechas de inicio y fin.`,
+        periodoExistente: {
+          id: periodoExistente.id,
+          nombre: periodoExistente.nombre,
+          fechaInicio: periodoExistente.fechaInicio,
+          fechaFin: periodoExistente.fechaFin
+        }
+      });
+    }
+
+    // Si hay nombre, validar que sea único
+    if (datosPeriodo.nombre) {
+      const nombreDuplicado = await Periodos.findOne({
+        where: { nombre: datosPeriodo.nombre }
+      });
+
+      if (nombreDuplicado) {
+        return res.status(400).json({ 
+          error: 'Ya existe un periodo con ese nombre',
+          msj: `El nombre "${datosPeriodo.nombre}" ya está en uso. Use otro nombre.`
+        });
+      }
+    }
+
     // Generar nombre automático si no fue proporcionado
     if (!datosPeriodo.nombre) {
       const nombreGenerado = generarNombrePeriodo(datosPeriodo.fechaInicio);
@@ -188,6 +223,41 @@ exports.EditarPeriodo = async (req, res) => {
     const periodoExistente = await Periodos.findByPk(id);
     if (!periodoExistente) {
       return res.status(404).json({ msj: "Periodo no encontrado" });
+    }
+
+    // Validar que no exista otro periodo con las mismas fechas (excepto el actual)
+    if (datosPeriodo.fechaInicio && datosPeriodo.fechaFin) {
+      const duplicadoFechas = await Periodos.findOne({
+        where: {
+          fechaInicio: datosPeriodo.fechaInicio,
+          fechaFin: datosPeriodo.fechaFin,
+          id: { [Op.ne]: id }
+        }
+      });
+
+      if (duplicadoFechas) {
+        return res.status(400).json({ 
+          error: 'Ya existe otro periodo con estas fechas',
+          msj: `El periodo "${duplicadoFechas.nombre}" ya tiene estas fechas.`
+        });
+      }
+    }
+
+    // Validar que el nombre sea único (excepto el actual)
+    if (datosPeriodo.nombre && datosPeriodo.nombre !== periodoExistente.nombre) {
+      const duplicadoNombre = await Periodos.findOne({
+        where: {
+          nombre: datosPeriodo.nombre,
+          id: { [Op.ne]: id }
+        }
+      });
+
+      if (duplicadoNombre) {
+        return res.status(400).json({ 
+          error: 'Ya existe otro periodo con ese nombre',
+          msj: `El nombre "${datosPeriodo.nombre}" ya está en uso.`
+        });
+      }
     }
 
     // Actualizar el periodo

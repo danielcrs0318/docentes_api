@@ -29,9 +29,31 @@ exports.CrearParcial = async (req, res) => {
 
     const { nombre, fechaInicio, fechaFin, periodoId } = req.body;
 
+    // Validar que no exista un parcial con el mismo nombre en el mismo periodo
+    const parcialExistente = await Parciales.findOne({
+      where: {
+        nombre,
+        periodoId: parseInt(periodoId)
+      }
+    });
+
+    if (parcialExistente) {
+      return res.status(400).json({ 
+        error: 'Ya existe un parcial con ese nombre en este periodo',
+        msj: `El parcial "${nombre}" ya existe en este periodo. Use otro nombre o verifique si ya fue creado.`
+      });
+    }
+
     // Convertir las fechas a objetos Date
     const fechaInicioDate = new Date(fechaInicio);
     const fechaFinDate = new Date(fechaFin);
+
+    // Validar que la fecha de inicio sea menor que la fecha de fin
+    if (fechaInicioDate >= fechaFinDate) {
+      return res.status(400).json({ 
+        error: 'La fecha de inicio debe ser anterior a la fecha de fin'
+      });
+    }
 
     // Crear el nuevo parcial con las fechas convertidas
     const data = await Parciales.create({
@@ -72,9 +94,32 @@ exports.EditarParcial = async (req, res) => {
 
     const { nombre, fechaInicio, fechaFin, periodoId } = req.body;
 
+    // Validar que no exista otro parcial con el mismo nombre en el mismo periodo (excepto el actual)
+    const parcialDuplicado = await Parciales.findOne({
+      where: {
+        nombre,
+        periodoId: parseInt(periodoId),
+        id: { [Op.ne]: id } // Excluir el parcial actual
+      }
+    });
+
+    if (parcialDuplicado) {
+      return res.status(400).json({ 
+        error: 'Ya existe otro parcial con ese nombre en este periodo',
+        msj: `Ya existe un parcial llamado "${nombre}" en este periodo.`
+      });
+    }
+
     // Convertir las fechas a objetos Date
     const fechaInicioDate = new Date(fechaInicio);
     const fechaFinDate = new Date(fechaFin);
+
+    // Validar que la fecha de inicio sea menor que la fecha de fin
+    if (fechaInicioDate >= fechaFinDate) {
+      return res.status(400).json({ 
+        error: 'La fecha de inicio debe ser anterior a la fecha de fin'
+      });
+    }
 
     // Actualizar el parcial
     await parcial.update({
