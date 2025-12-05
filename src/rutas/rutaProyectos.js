@@ -94,7 +94,7 @@ const rutas = Router();
  */
                             
 
-rutas.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE']), controladorProyectos.ListarProyectos);
+rutas.get('/listar', validarToken, verificarRol(['ADMIN', 'DOCENTE', 'ESTUDIANTE']), controladorProyectos.ListarProyectos);
 
 /* Obtener */
 rutas.get('/obtener', [

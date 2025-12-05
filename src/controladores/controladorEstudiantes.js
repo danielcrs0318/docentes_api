@@ -516,84 +516,106 @@ exports.CargarDesdeExcel = async (req, res) => {
                     });
 
                     // 🔐 CREAR USUARIO AUTOMÁTICAMENTE para el nuevo estudiante
+                    console.log(`🔄 Intentando crear usuario para estudiante: ${est.nombre} (${est.correo})`);
                     try {
                         // Buscar el rol ESTUDIANTE
                         const rolEstudiante = await Roles.findOne({ where: { nombre: 'ESTUDIANTE' } });
                         
                         if (!rolEstudiante) {
-                            console.warn('⚠️ Rol ESTUDIANTE no encontrado. No se creó usuario para:', est.correo);
+                            console.error('❌ Rol ESTUDIANTE no encontrado en la base de datos');
+                            console.error('💡 Asegúrate de que existe un rol llamado "ESTUDIANTE" en la tabla Roles');
                         } else {
-                            // Generar credenciales únicas
-                            const loginBase = generarLogin(est.nombre, est.correo);
-                            const login = await generarLoginUnico(loginBase, Usuarios);
-                            const contrasenaTemp = generarContrasenaAleatoria(10);
+                            console.log(`✅ Rol ESTUDIANTE encontrado (ID: ${rolEstudiante.id})`);
                             
-                            // Hashear contraseña
-                            const contrasenaHash = await argon2.hash(contrasenaTemp);
-                            
-                            // Crear usuario con flag de cambio obligatorio
-                            await Usuarios.create({
-                                login: login,
-                                correo: est.correo,
-                                contrasena: contrasenaHash,
-                                requiereCambioContrasena: true,
-                                rolId: rolEstudiante.id,
-                                estudianteId: estudiante.id,
-                                estado: 'AC'
+                            // Verificar si ya existe un usuario para este estudiante
+                            const usuarioExistente = await Usuarios.findOne({ 
+                                where: { estudianteId: estudiante.id } 
                             });
+                            
+                            if (usuarioExistente) {
+                                console.log(`ℹ️ El estudiante ${est.nombre} ya tiene usuario: ${usuarioExistente.login}`);
+                            } else {
+                                // Generar credenciales únicas
+                                const loginBase = generarLogin(est.nombre, est.correo);
+                                const login = await generarLoginUnico(loginBase, Usuarios);
+                                const contrasenaTemp = generarContrasenaAleatoria(10);
+                                
+                                console.log(`🔑 Credenciales generadas - Login: ${login}, Contraseña: ${contrasenaTemp}`);
+                                
+                                // Hashear contraseña
+                                const contrasenaHash = await argon2.hash(contrasenaTemp);
+                                
+                                // Crear usuario con flag de cambio obligatorio
+                                const nuevoUsuario = await Usuarios.create({
+                                    login: login,
+                                    correo: est.correo,
+                                    contrasena: contrasenaHash,
+                                    requiereCambioContrasena: true,
+                                    rolId: rolEstudiante.id,
+                                    estudianteId: estudiante.id,
+                                    estado: 'AC'
+                                });
 
-                            // 📧 Enviar correo con credenciales
-                            const asunto = '🔐 Credenciales de Acceso - Sistema Docentes';
-                            const cuerpoHTML = `
-                                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                                    <h2 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px;">
-                                        🎓 Bienvenido al Sistema de Gestión Académica
-                                    </h2>
-                                    
-                                    <p>Hola <strong>${est.nombre}</strong>,</p>
-                                    
-                                    <p>Se ha creado tu cuenta de usuario. A continuación encontrarás tus credenciales de acceso:</p>
-                                    
-                                    <div style="background-color: #e8f4f8; border-left: 4px solid #3498db; padding: 15px; margin: 20px 0;">
-                                        <h3 style="margin-top: 0; color: #2c3e50;">🔐 Tus Credenciales de Acceso</h3>
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #555;"><strong>Usuario (Login):</strong></td>
-                                                <td style="padding: 8px 0; color: #2c3e50; font-family: monospace; font-size: 14px;"><strong>${login}</strong></td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #555;"><strong>Correo alternativo:</strong></td>
-                                                <td style="padding: 8px 0; color: #2c3e50;">${est.correo}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #555;"><strong>Contraseña Temporal:</strong></td>
-                                                <td style="padding: 8px 0; background-color: #fff3cd; color: #856404; font-family: monospace; font-size: 16px; font-weight: bold; border-radius: 4px; padding: 5px 10px;">${contrasenaTemp}</td>
-                                            </tr>
-                                        </table>
-                                    </div>
-                                    
-                                    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
-                                        <h3 style="margin-top: 0; color: #856404;">⚠️ Importante</h3>
-                                        <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
-                                            <li>Puedes iniciar sesión usando tu <strong>usuario (${login})</strong> o tu <strong>correo electrónico</strong></li>
-                                            <li>Esta contraseña es <strong>temporal</strong></li>
-                                            <li>En tu primer inicio de sesión, el sistema te pedirá que cambies tu contraseña por una nueva de tu elección</li>
-                                            <li>Guarda esta información en un lugar seguro</li>
-                                        </ul>
-                                    </div>
-                                    
-                                    <p style="color: #7f8c8d; font-size: 12px; margin-top: 30px; border-top: 1px solid #ecf0f1; padding-top: 15px;">
-                                        <em>Este es un mensaje automático. Por favor no respondas a este correo.</em><br>
-                                        Si tienes problemas para acceder, contacta al administrador del sistema.
-                                    </p>
-                                </div>
-                            `;
+                                console.log(`✅ Usuario creado exitosamente con ID: ${nuevoUsuario.id}`);
 
-                            await enviarCorreo([est.correo], asunto, cuerpoHTML);
-                            console.log(`✅ Usuario y credenciales creados para estudiante: ${est.nombre} (${login})`);
+                                // 📧 Enviar correo con credenciales
+                                const asunto = '🔐 Credenciales de Acceso - Sistema de Gestión Docente';
+                                const cuerpoHTML = `
+                                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                                        <h2 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px;">
+                                            🎓 Bienvenido al Sistema de Gestión Académica
+                                        </h2>
+                                        
+                                        <p>Hola <strong>${est.nombre}</strong>,</p>
+                                        
+                                        <p>Se ha creado tu cuenta de usuario. A continuación encontrarás tus credenciales de acceso:</p>
+                                        
+                                        <div style="background-color: #e8f4f8; border-left: 4px solid #3498db; padding: 15px; margin: 20px 0;">
+                                            <h3 style="margin-top: 0; color: #2c3e50;">🔐 Tus Credenciales de Acceso</h3>
+                                            <table style="width: 100%; border-collapse: collapse;">
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #555;"><strong>Usuario (Login):</strong></td>
+                                                    <td style="padding: 8px 0; color: #2c3e50; font-family: monospace; font-size: 14px;"><strong>${login}</strong></td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #555;"><strong>Correo alternativo:</strong></td>
+                                                    <td style="padding: 8px 0; color: #2c3e50;">${est.correo}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 8px 0; color: #555;"><strong>Contraseña Temporal:</strong></td>
+                                                    <td style="padding: 8px 0; background-color: #fff3cd; color: #856404; font-family: monospace; font-size: 16px; font-weight: bold; border-radius: 4px; padding: 5px 10px;">${contrasenaTemp}</td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        
+                                        <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+                                            <h3 style="margin-top: 0; color: #856404;">⚠️ Importante</h3>
+                                            <ul style="margin: 10px 0; padding-left: 20px; color: #856404;">
+                                                <li>Puedes iniciar sesión usando tu <strong>usuario (${login})</strong> o tu <strong>correo electrónico</strong></li>
+                                                <li>Esta contraseña es <strong>temporal</strong></li>
+                                                <li>En tu primer inicio de sesión, el sistema te pedirá que cambies tu contraseña por una nueva de tu elección</li>
+                                                <li>Guarda esta información en un lugar seguro</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <p style="color: #7f8c8d; font-size: 12px; margin-top: 30px; border-top: 1px solid #ecf0f1; padding-top: 15px;">
+                                            <em>Este es un mensaje automático. Por favor no respondas a este correo.</em><br>
+                                            Si tienes problemas para acceder, contacta al administrador del sistema.
+                                        </p>
+                                    </div>
+                                `;
+
+                                console.log(`📧 Enviando correo a: ${est.correo}`);
+                                await enviarCorreo([est.correo], asunto, cuerpoHTML);
+                                console.log(`✅ Correo enviado exitosamente a ${est.correo}`);
+                                console.log(`✅ Usuario y credenciales creados para estudiante: ${est.nombre} (${login})`);
+                            }
                         }
                     } catch (errorUsuario) {
-                        console.error(`❌ Error al crear usuario para estudiante ${est.correo}:`, errorUsuario.message);
+                        console.error(`❌ Error al crear usuario para estudiante ${est.correo}:`);
+                        console.error('Tipo de error:', errorUsuario.name);
+                        console.error('Mensaje:', errorUsuario.message);
+                        console.error('Stack:', errorUsuario.stack);
                         // No fallar la importación si falla la creación del usuario
                     }
                 }

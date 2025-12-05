@@ -12,34 +12,75 @@ exports.ListarProyectos = async (req, res) => {
     return res.status(401).json({ error: 'Usuario no autenticado' });
   }
 
-  const { rol, docenteId } = req.usuario;
-  const where = {};
-
-  // Filtrar por docente si el rol es DOCENTE
-  if (rol === 'DOCENTE') {
-    where['$clase.docenteId$'] = docenteId;
-  }
+  const { rol, docenteId, estudianteId } = req.usuario;
+  
+  console.log('👤 ListarProyectos - Usuario:', { rol, docenteId, estudianteId });
 
   try {
-    const proyectos = await Proyectos.findAll({
-      where,
-      include: [
-        {
-          model: Clases,
-          as: 'clase',
-          attributes: ['id', 'nombre', 'docenteId'],
-          required: rol === 'DOCENTE' // INNER JOIN para DOCENTE, LEFT JOIN para ADMIN
-        },
-        {
-          model: Estudiantes,
-          as: 'estudiantes',
-          attributes: ['id', 'nombre', 'correo']
-        }
-      ]
-    });
+    let proyectos;
+
+    if (rol === 'ESTUDIANTE') {
+      // Para estudiantes: buscar solo proyectos donde está asignado
+      proyectos = await Proyectos.findAll({
+        include: [
+          {
+            model: Clases,
+            as: 'clase',
+            attributes: ['id', 'nombre', 'docenteId'],
+            required: false
+          },
+          {
+            model: Estudiantes,
+            as: 'estudiantes',
+            attributes: ['id', 'nombre', 'correo'],
+            where: { id: estudianteId }, // Filtrar solo donde el estudiante está asignado
+            required: true // INNER JOIN - solo proyectos con este estudiante
+          }
+        ]
+      });
+    } else if (rol === 'DOCENTE') {
+      // Para docentes: filtrar por clases que imparte
+      proyectos = await Proyectos.findAll({
+        include: [
+          {
+            model: Clases,
+            as: 'clase',
+            attributes: ['id', 'nombre', 'docenteId'],
+            where: { docenteId: docenteId },
+            required: true // INNER JOIN - solo proyectos de sus clases
+          },
+          {
+            model: Estudiantes,
+            as: 'estudiantes',
+            attributes: ['id', 'nombre', 'correo'],
+            required: false
+          }
+        ]
+      });
+    } else {
+      // Para ADMIN: ver todos los proyectos
+      proyectos = await Proyectos.findAll({
+        include: [
+          {
+            model: Clases,
+            as: 'clase',
+            attributes: ['id', 'nombre', 'docenteId'],
+            required: false
+          },
+          {
+            model: Estudiantes,
+            as: 'estudiantes',
+            attributes: ['id', 'nombre', 'correo'],
+            required: false
+          }
+        ]
+      });
+    }
+
+    console.log(`✅ Proyectos encontrados: ${proyectos.length}`);
     res.json(proyectos);
   } catch (error) {
-    console.error('Error listar proyectos:', error);
+    console.error('❌ Error listar proyectos:', error);
     res.status(500).json({ error: 'Error al listar proyectos' });
   }
 };
@@ -123,34 +164,49 @@ exports.CrearProyecto = async (req, res) => {
       claseId: claseId
     });
 
-    // Obtener estudiantes de la clase para notificar
-    const inscripciones = await EstudiantesClases.findAll({
-      where: { claseId },
-      include: [{ model: Estudiantes, as: 'estudiante', attributes: ['correo', 'nombre'] }]
-    });
-
-    // Enviar correos a estudiantes
-    inscripciones.forEach(inscripcion => {
-      if (inscripcion.estudiante?.correo) {
-        const asunto = `Nuevo proyecto asignado - ${nombre}`;
-        const contenidoInterno = `
-          <h2>¡Hola ${inscripcion.estudiante.nombre}! 👋</h2>
-          <p>Se ha creado un nuevo proyecto en tu clase.</p>
-          <div class="info-box">
-            <p><strong>📚 Clase:</strong> ${claseExiste.nombre}</p>
-            <p><strong>📝 Proyecto:</strong> ${nombre}</p>
-            ${descripcion ? `<p><strong>📖 Descripción:</strong> ${descripcion}</p>` : ''}
-            ${fecha_entrega ? `<p><strong>📅 Fecha de entrega:</strong> ${new Date(fecha_entrega).toLocaleDateString('es-ES')}</p>` : ''}
-            <p><strong>📋 Estado:</strong> ${estado || 'PENDIENTE'}</p>
-          </div>
-          <p>Por favor revisa la plataforma para más detalles y comenzar tu trabajo.</p>
-        `;
-        const contenido = generarPlantillaCorreo('Nuevo Proyecto', contenidoInterno);
-        enviarCorreo(inscripcion.estudiante.correo, asunto, contenido).catch(err => 
-          console.error(`Error enviando correo a ${inscripcion.estudiante.correo}:`, err.message)
-        );
+    // Asignar estudiantes si se proporcionó una lista
+    const { estudiantes: estudiantesIds } = req.body;
+    let estudiantesAsignados = [];
+    
+    if (Array.isArray(estudiantesIds) && estudiantesIds.length > 0) {
+      console.log('📝 Asignando estudiantes al proyecto:', estudiantesIds);
+      for (const estId of estudiantesIds) {
+        const est = await Estudiantes.findByPk(estId);
+        if (est) {
+          await nuevo.addEstudiante(est);
+          estudiantesAsignados.push(est);
+        }
       }
-    });
+      console.log(`✅ ${estudiantesAsignados.length} estudiantes asignados al proyecto`);
+    }
+
+    // SOLO enviar correos si hay estudiantes asignados
+    if (estudiantesAsignados.length > 0) {
+      console.log('📧 Enviando correos a estudiantes asignados...');
+      estudiantesAsignados.forEach(estudiante => {
+        if (estudiante.correo) {
+          const asunto = `Nuevo proyecto asignado - ${nombre}`;
+          const contenidoInterno = `
+            <h2>¡Hola ${estudiante.nombre}! 👋</h2>
+            <p>Se te ha asignado un nuevo proyecto.</p>
+            <div class="info-box">
+              <p><strong>📚 Clase:</strong> ${claseExiste.nombre}</p>
+              <p><strong>📝 Proyecto:</strong> ${nombre}</p>
+              ${descripcion ? `<p><strong>📖 Descripción:</strong> ${descripcion}</p>` : ''}
+              ${fecha_entrega ? `<p><strong>📅 Fecha de entrega:</strong> ${new Date(fecha_entrega).toLocaleDateString('es-ES')}</p>` : ''}
+              <p><strong>📋 Estado:</strong> ${estado || 'PENDIENTE'}</p>
+            </div>
+            <p>Por favor revisa la plataforma para más detalles y comenzar tu trabajo.</p>
+          `;
+          const contenido = generarPlantillaCorreo('Nuevo Proyecto', contenidoInterno);
+          enviarCorreo(estudiante.correo, asunto, contenido).catch(err => 
+            console.error(`Error enviando correo a ${estudiante.correo}:`, err.message)
+          );
+        }
+      });
+    } else {
+      console.log('ℹ️ No se enviaron correos (no hay estudiantes asignados al proyecto)');
+    }
 
     res.status(201).json({ message: 'Proyecto creado', proyecto: nuevo });
   } catch (error) {
@@ -196,6 +252,34 @@ exports.ActualizarProyecto = async (req, res) => {
     proyecto.claseId = (typeof claseId !== 'undefined') ? claseId : proyecto.claseId;
 
     await proyecto.save();
+
+    // Actualizar estudiantes asignados si se proporcionó una lista
+    const { estudiantes: estudiantesIds } = req.body;
+    if (Array.isArray(estudiantesIds)) {
+      console.log('📝 Actualizando estudiantes del proyecto:', estudiantesIds);
+      // Obtener estudiantes actuales
+      const estudiantesActuales = await proyecto.getEstudiantes();
+      const idsActuales = estudiantesActuales.map(e => e.id);
+      
+      // Agregar nuevos estudiantes
+      for (const estId of estudiantesIds) {
+        if (!idsActuales.includes(estId)) {
+          const est = await Estudiantes.findByPk(estId);
+          if (est) {
+            await proyecto.addEstudiante(est);
+            console.log(`➕ Estudiante ${estId} agregado al proyecto`);
+          }
+        }
+      }
+      
+      // Remover estudiantes que ya no están en la lista
+      for (const estActual of estudiantesActuales) {
+        if (!estudiantesIds.includes(estActual.id)) {
+          await proyecto.removeEstudiante(estActual);
+          console.log(`➖ Estudiante ${estActual.id} removido del proyecto`);
+        }
+      }
+    }
 
     // Obtener estudiantes asignados al proyecto
     const proyectoConEstudiantes = await Proyectos.findByPk(id, {

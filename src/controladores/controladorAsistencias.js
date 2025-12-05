@@ -71,7 +71,11 @@ exports.listarAsistencias = async (req, res) => {
 exports.guardarAsistencia = async (req, res) => {
     const errores = validationResult(req);
     if (!errores.isEmpty()) {
-        return res.status(400).json({ errores: errores.array() });
+        console.error('Errores de validación:', JSON.stringify(errores.array(), null, 2));
+        return res.status(400).json({ 
+            mensaje: 'Errores de validación',
+            errores: errores.array() 
+        });
     }
 
     // Validar autenticación
@@ -79,11 +83,22 @@ exports.guardarAsistencia = async (req, res) => {
         return res.status(401).json({ mensaje: 'Usuario no autenticado' });
     }
 
+    console.log('=== GUARDANDO ASISTENCIA ===');
+    console.log('Usuario:', req.usuario);
+    console.log('Datos recibidos (req.body):', JSON.stringify(req.body, null, 2));
+    console.log('Archivo (req.file):', req.file ? req.file.filename : 'No hay archivo');
+
     try {
         // Normalizar entrada
         const payload = { ...req.body };
         if (payload.estado && typeof payload.estado === 'string') payload.estado = payload.estado.toUpperCase().trim();
-        if (payload.fecha) payload.fecha = new Date(payload.fecha);
+        
+        // Si no se proporciona fecha, usar la fecha actual del sistema
+        if (!payload.fecha) {
+            payload.fecha = new Date();
+        } else {
+            payload.fecha = new Date(payload.fecha);
+        }
 
         // Validar que si es EXCUSA, debe tener imagen
         if (payload.estado === 'EXCUSA' && !req.file) {
@@ -92,18 +107,92 @@ exports.guardarAsistencia = async (req, res) => {
 
     // Verificar que existan las referencias foráneas antes de crear
     if (!payload.estudianteId) return res.status(400).json({ mensaje: 'estudianteId es requerido' });
-    if (!payload.periodoId) return res.status(400).json({ mensaje: 'periodoId es requerido' });
-    if (!payload.parcialId) return res.status(400).json({ mensaje: 'parcialId es requerido' });
     if (!payload.claseId) return res.status(400).json({ mensaje: 'claseId es requerido' });
 
     const estudiante = await Estudiante.findByPk(payload.estudianteId);
     if (!estudiante) return res.status(400).json({ mensaje: `Estudiante con id ${payload.estudianteId} no encontrado` });
-    const periodoExists = await Periodo.findByPk(payload.periodoId);
-    if (!periodoExists) return res.status(400).json({ mensaje: `Periodo con id ${payload.periodoId} no encontrado` });
-    const parcialExists = await Parcial.findByPk(payload.parcialId);
-    if (!parcialExists) return res.status(400).json({ mensaje: `Parcial con id ${payload.parcialId} no encontrado` });
     const claseExists = await Clase.findByPk(payload.claseId);
     if (!claseExists) return res.status(400).json({ mensaje: `Clase con id ${payload.claseId} no encontrado` });
+
+    // 🔥 CALCULAR AUTOMÁTICAMENTE PERIODO Y PARCIAL BASADO EN LA FECHA
+    const fechaAsistencia = payload.fecha;
+    
+    // Convertir a formato de fecha sin hora (YYYY-MM-DD)
+    const fechaStr = fechaAsistencia.toISOString().split('T')[0];
+    
+    console.log('=== DEBUG CALCULO DE PERIODO/PARCIAL ===');
+    console.log('Fecha de asistencia:', fechaAsistencia);
+    console.log('Fecha sin hora:', fechaStr);
+    
+    // Buscar TODOS los periodos y parciales para debug
+    const todosPeriodos = await Periodo.findAll();
+    const todosParciales = await Parcial.findAll();
+    
+    console.log('Total periodos en BD:', todosPeriodos.length);
+    console.log('Periodos:', todosPeriodos.map(p => `ID:${p.id} ${p.nombre} (${new Date(p.fechaInicio).toISOString().split('T')[0]} a ${new Date(p.fechaFin).toISOString().split('T')[0]})`).join(' | '));
+    console.log('Total parciales en BD:', todosParciales.length);
+    console.log('Parciales:', todosParciales.map(p => `ID:${p.id} ${p.nombre} periodoId:${p.periodoId} (${new Date(p.fechaInicio).toISOString().split('T')[0]} a ${new Date(p.fechaFin).toISOString().split('T')[0]})`).join(' | '));
+    
+    // Buscar el periodo que contenga la fecha de asistencia Y tenga parciales activos
+    let periodo = null;
+    let parcial = null;
+    
+    for (const p of todosPeriodos) {
+        const inicioStr = new Date(p.fechaInicio).toISOString().split('T')[0];
+        const finStr = new Date(p.fechaFin).toISOString().split('T')[0];
+        
+        console.log(`Evaluando periodo ${p.id} (${p.nombre}): ${inicioStr} a ${finStr}`);
+        
+        const dentroRangoPeriodo = fechaStr >= inicioStr && fechaStr <= finStr;
+        console.log(`  ¿${fechaStr} está entre ${inicioStr} y ${finStr}? ${dentroRangoPeriodo}`);
+        
+        if (dentroRangoPeriodo) {
+            // Verificar si tiene parciales que contengan la fecha
+            const parcialesDelPeriodo = todosParciales.filter(parc => parc.periodoId === p.id);
+            console.log(`  → Parciales del periodo: ${parcialesDelPeriodo.length}`);
+            
+            for (const parc of parcialesDelPeriodo) {
+                const parcInicioStr = new Date(parc.fechaInicio).toISOString().split('T')[0];
+                const parcFinStr = new Date(parc.fechaFin).toISOString().split('T')[0];
+                
+                const dentroRangoParcial = fechaStr >= parcInicioStr && fechaStr <= parcFinStr;
+                console.log(`    - Parcial ${parc.id} (${parc.nombre}): ${parcInicioStr} a ${parcFinStr} → ${dentroRangoParcial}`);
+                
+                if (dentroRangoParcial) {
+                    periodo = p;
+                    parcial = parc;
+                    console.log(`  ✅ ENCONTRADO: Periodo ${p.id} con Parcial ${parc.id}`);
+                    break;
+                }
+            }
+            
+            if (parcial) break;
+        }
+    }
+    
+    if (!periodo || !parcial) {
+        const periodosInfo = todosPeriodos.map(p => ({
+            id: p.id,
+            nombre: p.nombre,
+            inicio: new Date(p.fechaInicio).toISOString().split('T')[0],
+            fin: new Date(p.fechaFin).toISOString().split('T')[0],
+            cantidadParciales: todosParciales.filter(parc => parc.periodoId === p.id).length
+        }));
+        
+        return res.status(400).json({ 
+            mensaje: 'No se encontró un periodo con parciales activos para la fecha de asistencia',
+            fecha: fechaAsistencia,
+            fechaComparacion: fechaStr,
+            periodosDisponibles: periodosInfo
+        });
+    }
+    
+    console.log('✅ Periodo encontrado:', periodo.id, periodo.nombre);
+    console.log('✅ Parcial encontrado:', parcial.id, parcial.nombre);
+    
+    // Asignar automáticamente el periodo y parcial calculados
+    payload.periodoId = periodo.id;
+    payload.parcialId = parcial.id;
 
     // Si es docente, verificar que la clase le pertenezca
     const { rol, docenteId } = req.usuario;
@@ -148,6 +237,8 @@ exports.guardarAsistencia = async (req, res) => {
       asistencia, 
       correoEnviado: !!estudiante.correo,
       imagenGuardada: !!req.file,
+      periodoCalculado: periodo.nombre,
+      parcialCalculado: parcial.nombre,
       mensaje: 'Asistencia registrada exitosamente'
     });
     } catch (error) {
@@ -170,13 +261,80 @@ exports.guardarAsistenciaMultiple = async (req, res) => {
     }
 
     try {
-        const { fecha, claseId, seccionId, periodoId, parcialId, estudiantes, estadoPredeterminado = 'PRESENTE' } = req.body;
+        let { fecha, claseId, seccionId, estudiantes, estadoPredeterminado = 'PRESENTE' } = req.body;
 
-        // Validar que existan parcial y periodo
-        const parcial = await Parcial.findOne({ where: { id: parcialId } });
-        if (!parcial) return res.status(400).json({ mensaje: 'Parcial no encontrado' });
-        const periodo = await Periodo.findOne({ where: { id: periodoId } });
-        if (!periodo) return res.status(400).json({ mensaje: 'Periodo no encontrado' });
+        // Si no se proporciona fecha, usar la fecha actual del sistema
+        if (!fecha) {
+            fecha = new Date();
+        } else {
+            fecha = new Date(fecha);
+        }
+        
+        // Validar que se especifique claseId para calcular periodo/parcial
+        if (!claseId) {
+            return res.status(400).json({ mensaje: 'claseId es requerido para calcular periodo y parcial automáticamente' });
+        }
+
+        // 🔥 CALCULAR AUTOMÁTICAMENTE PERIODO Y PARCIAL BASADO EN LA FECHA
+        const fechaAsistencia = fecha;
+        
+        // Convertir a formato de fecha sin hora (YYYY-MM-DD)
+        const fechaStr = fechaAsistencia.toISOString().split('T')[0];
+        
+        // Buscar TODOS los periodos y parciales
+        const todosPeriodos = await Periodo.findAll();
+        const todosParciales = await Parcial.findAll();
+        
+        // Buscar el periodo que contenga la fecha de asistencia Y tenga parciales activos
+        let periodo = null;
+        let parcial = null;
+        
+        for (const p of todosPeriodos) {
+            const inicioStr = new Date(p.fechaInicio).toISOString().split('T')[0];
+            const finStr = new Date(p.fechaFin).toISOString().split('T')[0];
+            
+            const dentroRangoPeriodo = fechaStr >= inicioStr && fechaStr <= finStr;
+            
+            if (dentroRangoPeriodo) {
+                // Verificar si tiene parciales que contengan la fecha
+                const parcialesDelPeriodo = todosParciales.filter(parc => parc.periodoId === p.id);
+                
+                for (const parc of parcialesDelPeriodo) {
+                    const parcInicioStr = new Date(parc.fechaInicio).toISOString().split('T')[0];
+                    const parcFinStr = new Date(parc.fechaFin).toISOString().split('T')[0];
+                    
+                    const dentroRangoParcial = fechaStr >= parcInicioStr && fechaStr <= parcFinStr;
+                    
+                    if (dentroRangoParcial) {
+                        periodo = p;
+                        parcial = parc;
+                        break;
+                    }
+                }
+                
+                if (parcial) break;
+            }
+        }
+        
+        if (!periodo || !parcial) {
+            const periodosInfo = todosPeriodos.map(p => ({
+                id: p.id,
+                nombre: p.nombre,
+                inicio: new Date(p.fechaInicio).toISOString().split('T')[0],
+                fin: new Date(p.fechaFin).toISOString().split('T')[0],
+                cantidadParciales: todosParciales.filter(parc => parc.periodoId === p.id).length
+            }));
+            
+            return res.status(400).json({ 
+                mensaje: 'No se encontró un periodo con parciales activos para la fecha de asistencia',
+                fecha: fechaAsistencia,
+                fechaComparacion: fechaStr,
+                periodosDisponibles: periodosInfo
+            });
+        }
+        
+        const periodoId = periodo.id;
+        const parcialId = parcial.id;
 
         // Validar que se especifique al menos un objetivo de asignación
         if (!claseId && !seccionId && (!estudiantes || !Array.isArray(estudiantes) || estudiantes.length === 0)) {
@@ -278,6 +436,8 @@ exports.guardarAsistenciaMultiple = async (req, res) => {
         res.status(201).json({
             mensaje: 'Asistencias registradas correctamente',
             cantidad: asistenciasCreadas.length,
+            periodoCalculado: periodo.nombre,
+            parcialCalculado: parcial.nombre,
             asistencias: asistenciasCreadas
         });
 

@@ -59,10 +59,8 @@ const router = Router();
 
 // Validaciones para asistencia múltiple
 const validacionesAsistenciaMultiple = [
-    body('fecha').isISO8601().withMessage('Fecha inválida'),
-    body('periodoId').isInt().withMessage('ID de periodo inválido'),
-    body('parcialId').isInt().withMessage('ID de parcial inválido'),
-    body('claseId').optional().isInt().withMessage('ID de clase inválido'),
+    body('fecha').optional().isISO8601().withMessage('Fecha inválida'),
+    body('claseId').isInt().withMessage('ID de clase requerido para calcular periodo/parcial'),
     body('seccionId').optional().isInt().withMessage('ID de sección inválido'),
     body('estadoPredeterminado').optional().isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado predeterminado inválido'),
     body('estudiantes').optional().isArray().withMessage('El campo estudiantes debe ser un array'),
@@ -74,10 +72,8 @@ const validacionesAsistenciaMultiple = [
 // Validaciones comunes
 const validacionesAsistencia = [
     body('estudianteId').isInt().withMessage('ID de estudiante inválido'),
-    body('periodoId').isInt().withMessage('ID de periodo inválido'),
-    body('parcialId').isInt().withMessage('ID de parcial inválido'),
     body('claseId').isInt().withMessage('ID de clase inválido'),
-    body('fecha').isISO8601().withMessage('Fecha inválida'),
+    body('fecha').optional().isISO8601().withMessage('Fecha inválida'),
     body('estado').isIn(['PRESENTE', 'AUSENTE', 'TARDANZA', 'EXCUSA']).withMessage('Estado inválido'),
     body('descripcion').optional().isString().isLength({ max: 255 }).withMessage('Descripción inválida')
 ];
