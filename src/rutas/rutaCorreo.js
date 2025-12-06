@@ -4,7 +4,7 @@ const { enviarCorreo } = require('../configuraciones/correo');
 
 /**
  * @swagger
- * /api/correo/enviar:
+ * /correo/enviar:
  *   post:
  *     summary: Enviar correo electrónico
  *     tags: [Correo]

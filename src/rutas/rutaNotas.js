@@ -7,7 +7,7 @@ const { verificarRol } = require('../configuraciones/autorizacion');
 
 /**
  * @swagger
- * /api/notas/obtener:
+ * /notas/obtener:
  *   get:
  *     summary: Obtener notas de estudiantes por clase y periodo
  *     tags: [Notas]
@@ -59,7 +59,7 @@ router.get(
 
 /**
  * @swagger
- * /api/notas/mis-notas:
+ * /notas/mis-notas:
  *   get:
  *     summary: Obtener mis notas (estudiante)
  *     tags: [Notas]

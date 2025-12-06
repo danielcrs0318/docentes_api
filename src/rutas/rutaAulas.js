@@ -131,7 +131,7 @@ rutas.post('/guardar', [
 
 /**
  * @swagger
- * /api/aulas/editar:
+ * /aulas/editar:
  *   put:
  *     summary: Actualizar un aula existente
  *     tags: [Aulas]
