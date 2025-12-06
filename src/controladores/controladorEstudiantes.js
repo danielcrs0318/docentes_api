@@ -262,7 +262,7 @@ exports.CargarDesdeExcel = async (req, res) => {
 
         const codigoClase = codigoClaseCell.v;
         const nombreClase = nombreClaseCell ? nombreClaseCell.v : null;
-        const nombreSeccion = nombreSeccionCell ? nombreSeccionCell.v : null;
+        const nombreSeccion = nombreSeccionCell ? String(nombreSeccionCell.v) : null;
         const fechaInicio = fechaInicioCell ? fechaInicioCell.v : null;
         const fechaFin = fechaFinCell ? fechaFinCell.v : null;
 

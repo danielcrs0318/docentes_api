@@ -2,8 +2,13 @@ const db = require('../configuraciones/db');
 const { DataTypes } = require('sequelize');
 
 const AsistenciaImagen = db.define(
-    'asistenciaImagenes',
+    'AsistenciaImagenes',
     {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
         imagen: {
             type: DataTypes.STRING(250),
             allowNull: false,
@@ -27,7 +32,7 @@ const AsistenciaImagen = db.define(
         }
     },
     {
-        tableName: 'asistenciaImagenes'
+        tableName: 'AsistenciaImagenes'
     }
 );
 

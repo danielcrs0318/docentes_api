@@ -4,6 +4,11 @@ const { DataTypes } = require('sequelize');
 const Periodos = db.define(
     'Periodos',
     {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
         nombre: {
             type: DataTypes.STRING(50),
             allowNull: true
