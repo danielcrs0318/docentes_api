@@ -1,4 +1,4 @@
-const { Sequelize } = require('sequelize');
+/*const { Sequelize } = require('sequelize');
 
 const db = new Sequelize(
     process.env.DB_NAME || 'docentes_db',
@@ -8,6 +8,18 @@ const db = new Sequelize(
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT || 3306,
         dialect: 'mysql',
+        logging: false,
+    }
+)
+module.exports = db;*/
+
+const { Sequelize } = require('sequelize');
+
+const db = new Sequelize(
+    process.env.supabase_string,
+    {
+        dialect: 'postgres',
+        protocol: 'postgres',
         logging: false,
     }
 )
