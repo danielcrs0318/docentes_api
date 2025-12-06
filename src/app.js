@@ -339,7 +339,7 @@ function mountServerAndRoutes() {
   app.use('/api/estructura-calificacion', require('./rutas/rutaEstructuraCalificacion'));
   app.use('/api/notas', require('./rutas/rutaNotas'));
 
-  // Documentación Swagger
+  // Documentación Swagger nuevo prueba
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
   // Endpoint para obtener el JSON de Swagger
