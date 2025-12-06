@@ -337,6 +337,7 @@ function mountServerAndRoutes() {
   app.use('/api/notificaciones', require('./rutas/rutaNotificaciones'));
   app.use('/api/correo', require('./rutas/rutaCorreo'));
   app.use('/api/estructura-calificacion', require('./rutas/rutaEstructuraCalificacion'));
+  app.use('/api/notas', require('./rutas/rutaNotas'));
 
   // Documentación Swagger
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
