@@ -9,3 +9,4 @@
 *.tmp
 public/img/usuarios/*
 public/img/asistencias/excusas/ *
+.env.example

@@ -3,8 +3,13 @@ const { DataTypes} = require('sequelize');
 const moment = require('moment');
 
 const UsuarioImagen = db.define(
-    'usuarioImagenes',
+    'UsuarioImagenes',
     {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
         imagen: {
             type: DataTypes.STRING(250),
             allowNull: true
@@ -18,13 +23,13 @@ const UsuarioImagen = db.define(
             type: DataTypes.INTEGER,
             allowNull: false,
             references: {
-                model: 'usuarios',
+                model: 'Usuarios',
                 key: 'id'
             }
         }
     },
     {
-        tableName: 'usuarioImagenes'
+        tableName: 'UsuarioImagenes'
     }
 );
 

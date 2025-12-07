@@ -353,19 +353,29 @@ exports.guardarAsistenciaMultiple = async (req, res) => {
                 where: { id: estudiantesIds }
             });
         } else if (seccionId) {
-            // Si se especificó una sección
-            const seccion = await Secciones.findByPk(seccionId);
-            if (!seccion) return res.status(400).json({ mensaje: 'Sección no encontrada' });
-            estudiantesObjetivo = await Estudiante.findAll({ 
-                where: { seccionId: seccionId }
+            // Si se especificó una sección, buscar estudiantes a través de EstudiantesClases
+            const EstudiantesClases = require('../modelos/EstudiantesClases');
+            const inscripciones = await EstudiantesClases.findAll({
+                where: { seccionId: seccionId },
+                include: [{
+                    model: Estudiante,
+                    as: 'estudiante',
+                    required: true
+                }]
             });
+            estudiantesObjetivo = inscripciones.map(i => i.estudiante);
         } else if (claseId) {
-            // Si se especificó una clase
-            const clase = await Clase.findByPk(claseId);
-            if (!clase) return res.status(400).json({ mensaje: 'Clase no encontrada' });
-            estudiantesObjetivo = await Estudiante.findAll({ 
-                where: { claseId: claseId }
+            // Si se especificó una clase, buscar estudiantes a través de EstudiantesClases
+            const EstudiantesClases = require('../modelos/EstudiantesClases');
+            const inscripciones = await EstudiantesClases.findAll({
+                where: { claseId: claseId },
+                include: [{
+                    model: Estudiante,
+                    as: 'estudiante',
+                    required: true
+                }]
             });
+            estudiantesObjetivo = inscripciones.map(i => i.estudiante);
         }
 
         if (!estudiantesObjetivo || estudiantesObjetivo.length === 0) {

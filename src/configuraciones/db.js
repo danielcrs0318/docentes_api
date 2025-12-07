@@ -11,4 +11,8 @@ const db = new Sequelize(
         logging: false,
     }
 )
+<<<<<<< HEAD
 module.exports = db;
+=======
+module.exports = db;
+>>>>>>> 42aece52e09d512ed7bfa6f93ac1607f5486b97c

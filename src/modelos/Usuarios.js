@@ -3,8 +3,13 @@ const { DataTypes} = require('sequelize');
 const moment = require('moment');
 
 const Usuario = db.define(
-    'usuario',
+    'Usuarios',
     {
+        id: {
+            type: DataTypes.INTEGER,
+            primaryKey: true,
+            autoIncrement: true
+        },
         login: { type: DataTypes.STRING(50), allowNull: false },
         correo: { type: DataTypes.STRING(150), allowNull: false },
         pin: { type: DataTypes.STRING(6), allowNull: true },
@@ -39,7 +44,7 @@ const Usuario = db.define(
         }
     },
     {
-        tableName: 'usuarios'
+        tableName: 'Usuarios'
     }
 );
 

@@ -15,7 +15,7 @@ const rutas = Router();
 
 /**
  * @swagger
- * /api/grupos/validar-cantidad:
+ * /grupos/validar-cantidad:
  *   get:
  *     summary: Validar cantidad de estudiantes disponibles para rifar
  *     tags: [Grupos]
@@ -49,7 +49,7 @@ rutas.get('/validar-cantidad', [
 
 /**
  * @swagger
- * /api/grupos/rifar-proyectos:
+ * /grupos/rifar-proyectos:
  *   post:
  *     summary: Rifar proyectos y crear grupos automáticamente
  *     tags: [Grupos]
@@ -83,7 +83,7 @@ rutas.post('/rifar-proyectos', [
 
 /**
  * @swagger
- * /api/grupos/asignar-estudiantes:
+ * /grupos/asignar-estudiantes:
  *   post:
  *     summary: Asignar estudiantes a un grupo
  *     tags: [Grupos]
@@ -124,7 +124,7 @@ rutas.post('/asignar-estudiantes', [
 
 /**
  * @swagger
- * /api/grupos/listar:
+ * /grupos/listar:
  *   get:
  *     summary: Listar grupos de una clase con estudiantes y proyectos asignados
  *     tags: [Grupos]
@@ -151,7 +151,7 @@ rutas.get('/listar', [
 
 /**
  * @swagger
- * /api/grupos/eliminar-clase:
+ * /grupos/eliminar-clase:
  *   delete:
  *     summary: Eliminar todos los grupos de una clase
  *     tags: [Grupos]
