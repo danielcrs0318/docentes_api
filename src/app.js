@@ -35,9 +35,25 @@ const path = require('path');
 
 const app = express();
 
-// Configuración de CORS para producción
+// Configuración de CORS para desarrollo y producción
+const allowedOrigins = [
+  'http://localhost:5173',  // Vite dev server
+  'http://localhost:3000',  // React dev server alternativo
+  'http://localhost:3001',  // Otro puerto común
+  process.env.FRONTEND_URL  // URL de producción
+].filter(Boolean); // Eliminar valores undefined
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como apps móviles o Postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -287,8 +303,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloAsistenciaImagenes.sync({ alter: true }).then((data) => {
-    console.log("Tabla AsistenciaImagenes sincronizada (alter:true) exitosamente");
+  await modeloAsistenciaImagenes.sync().then((data) => {
+    console.log("Tabla AsistenciaImagenes sincronizada exitosamente");
   }).catch((err) => {
     console.error(err);
   });
@@ -299,8 +315,8 @@ db.authenticate().then(async (data) => {
     console.error(err);
   });
 
-  await modeloUsuarioImagenes.sync({ alter: true }).then((data) => {
-    console.log("Tabla UsuarioImagenes sincronizada (alter:true) con un Modelo exitosamente");
+  await modeloUsuarioImagenes.sync().then((data) => {
+    console.log("Tabla UsuarioImagenes sincronizada exitosamente");
   }).catch((err) => {
     console.error(err);
   });

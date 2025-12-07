@@ -1,14 +1,20 @@
 const { Sequelize } = require('sequelize');
 
 const db = new Sequelize(
-    process.env.DB_NAME || 'docentes_db',
-    process.env.DB_USER || 'root',
-    process.env.DB_PASS || 'root',
+    process.env.supabaseUrl,
     {
-        host: process.env.DB_HOST || 'localhost',
-        port: process.env.DB_PORT || 3306,
-        dialect: 'mysql',
+        dialect: 'postgres', 
         logging: false,
+        define: {
+            freezeTableName: true,
+            timestamps: true
+        },
+        dialectOptions: {
+            ssl: {
+                require: true,
+                rejectUnauthorized: false
+            }
+        }
     }
 )
 module.exports = db;

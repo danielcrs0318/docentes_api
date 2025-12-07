@@ -11,14 +11,12 @@ const AsistenciaImagen = db.define(
         },
         imagen: {
             type: DataTypes.STRING(250),
-            allowNull: false,
-            comment: 'Nombre del archivo de imagen de excusa'
+            allowNull: false
         },
         estado: {
             type: DataTypes.ENUM('AC', 'IN', 'BL'),
             allowNull: false,
-            defaultValue: 'AC',
-            comment: 'AC=Activo, IN=Inactivo, BL=Bloqueado'
+            defaultValue: 'AC'
         },
         asistenciaId: {
             type: DataTypes.INTEGER,
@@ -27,8 +25,7 @@ const AsistenciaImagen = db.define(
                 model: 'Asistencias',
                 key: 'id'
             },
-            onDelete: 'CASCADE',
-            comment: 'ID de la asistencia asociada'
+            onDelete: 'CASCADE'
         }
     },
     {

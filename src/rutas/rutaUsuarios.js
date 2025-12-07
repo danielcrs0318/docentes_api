@@ -16,6 +16,7 @@ const { validarToken } = require('../configuraciones/passport');
  *         - login
  *         - correo
  *         - contrasena
+ *         - rolId
  *       properties:
  *         id:
  *           type: integer
@@ -29,18 +30,6 @@ const { validarToken } = require('../configuraciones/passport');
  *           format: email
  *           maxLength: 150
  *           description: Correo electrónico del usuario
- *         pin:
- *           type: string
- *           maxLength: 6
- *           description: Código PIN temporal para recuperación de acceso
- *         pinExpiracion:
- *           type: string
- *           format: date-time
- *           description: Fecha y hora de expiración del PIN
- *         intentos:
- *           type: integer
- *           description: Número de intentos fallidos de inicio de sesión
- *           default: 0
  *         contrasena:
  *           type: string
  *           format: password
@@ -53,15 +42,16 @@ const { validarToken } = require('../configuraciones/passport');
  *         docenteId:
  *           type: integer
  *           description: ID del docente asociado al usuario
+ *         rolId:
+ *           type: integer
+ *           description: ID del rol asignado al usuario
  *       example:
  *         login: dmolina
  *         correo: daniel@example.com
  *         contrasena: "123456"
- *         pin: "904512"
- *         pinExpiracion: "2025-11-12T23:59:00Z"
- *         intentos: 0
  *         estado: AC
  *         docenteId: 1
+ *         rolId: 2
  *     UsuarioImagen:
  *       type: object
  *       properties:
@@ -316,7 +306,42 @@ rutas.get('/listar', validarToken, controladorUsuarios.Listar);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Usuario'
+ *             type: object
+ *             required:
+ *               - login
+ *               - correo
+ *               - contrasena
+ *               - rolId
+ *             properties:
+ *               login:
+ *                 type: string
+ *                 maxLength: 50
+ *                 description: Nombre de usuario único
+ *                 example: dmolina
+ *               correo:
+ *                 type: string
+ *                 format: email
+ *                 maxLength: 150
+ *                 description: Correo electrónico único
+ *                 example: daniel@example.com
+ *               contrasena:
+ *                 type: string
+ *                 minLength: 6
+ *                 description: Contraseña del usuario
+ *                 example: "123456"
+ *               rolId:
+ *                 type: integer
+ *                 description: ID del rol a asignar
+ *                 example: 2
+ *               docenteId:
+ *                 type: integer
+ *                 description: ID del docente asociado (opcional)
+ *                 example: 1
+ *               estado:
+ *                 type: string
+ *                 enum: [AC, IN, BL]
+ *                 default: AC
+ *                 description: Estado del usuario
  *     responses:
  *       201:
  *         description: Usuario creado exitosamente
@@ -349,6 +374,7 @@ rutas.post('/guardar', [
         }
     }),
     body('contrasena').notEmpty().withMessage('La contraseña es obligatoria'),
+    body('rolId').notEmpty().withMessage('El rol es obligatorio').isInt().withMessage('El rol debe ser un número entero'),
     body('estado').optional().isIn(['AC', 'IN', 'BL']).withMessage('El estado no es válido'),
 ], 
     registrarAuditoria('CREAR', 'Usuarios', {
@@ -389,6 +415,7 @@ rutas.put('/editar', [
             }
         }
     }),
+    body('rolId').optional().isInt().withMessage('El rol debe ser un número entero'),
     body('estado').optional().isIn(['AC', 'IN', 'BL']).withMessage('El estado no es válido'),
 ], 
     registrarAuditoria('EDITAR', 'Usuarios', {
